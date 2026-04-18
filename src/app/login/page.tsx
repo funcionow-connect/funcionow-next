@@ -1,9 +1,24 @@
 "use client";
 import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function HomePage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
+const handleLogin = async () => {
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  window.location.href = "/dashboard";
+};
   return (
     <main
       style={{
@@ -72,6 +87,8 @@ export default function HomePage() {
               <input
                 type="email"
                 placeholder="seu@email.com"
+                value={email}
+onChange={(e) => setEmail(e.target.value)}
                 style={{
                   marginTop: "4px",
                   width: "100%",
@@ -92,6 +109,8 @@ export default function HomePage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  value={password}
+onChange={(e) => setPassword(e.target.value)}
                   style={{
                     width: "100%",
                     borderRadius: "6px",
@@ -122,6 +141,7 @@ export default function HomePage() {
             </div>
 
             <button
+            onClick={handleLogin}
               style={{
                 width: "100%",
                 borderRadius: "6px",

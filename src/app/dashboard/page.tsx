@@ -1,6 +1,15 @@
+import {supabase} from "@/lib/supabase";
+
 import AppLayout from "@/components/AppLayout";
 
 export default function DashboardPage() {
+  async function testConnection() {
+  const { data, error } = await supabase.from("creators").select("*").limit(1);
+  console.log("SUPABASE TEST:", data, error);
+}
+
+testConnection();
+  
   return (
     <AppLayout>
       <div style={{ background: "#f5f5f6" }}>
