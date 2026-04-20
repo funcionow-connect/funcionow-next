@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/lib/supabaseClient";
@@ -47,6 +46,20 @@ type CreatorDetalhe = {
 };
 
 export default function CreatorDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppLayout>
+          <div style={{ color: "#6b7280", fontSize: "14px" }}>Carregando...</div>
+        </AppLayout>
+      }
+    >
+      <CreatorDetailContent />
+    </Suspense>
+  );
+}
+
+function CreatorDetailContent() {
   const searchParams = useSearchParams();
   const creatorId = searchParams.get("creator_id");
 
