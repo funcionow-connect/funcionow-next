@@ -1,8 +1,34 @@
 "use client";
 import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [nome, setNome] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleRegister = async () => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          nome,
+          empresa_nome: empresa,
+        },
+      },
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Conta criada com sucesso!");
+    window.location.href = "/dashboard";
+  };
 
   return (
     <main
@@ -67,17 +93,33 @@ export default function RegisterPage() {
           <div style={{ marginTop: "24px", display: "grid", gap: "12px" }}>
             <div>
               <label style={labelStyle}>Seu nome</label>
-              <input placeholder="Nome completo" style={inputStyle} />
+              <input
+                placeholder="Nome completo"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
             <div>
               <label style={labelStyle}>Nome da empresa</label>
-              <input placeholder="Sua empresa" style={inputStyle} />
+              <input
+                placeholder="Sua empresa"
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
             <div>
               <label style={labelStyle}>E-mail</label>
-              <input type="email" placeholder="seu@email.com" style={inputStyle} />
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
             <div>
@@ -86,7 +128,9 @@ export default function RegisterPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Mínimo 6 caracteres"
-                  style={{ ...inputStyle, paddingRight: "48px" }}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={inputStyle}
                 />
                 <button
                   type="button"
@@ -98,12 +142,21 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button style={buttonStyle}>Criar conta</button>
+            <button style={buttonStyle} onClick={handleRegister}>
+              Criar conta
+            </button>
 
-            <p style={{ textAlign: "center", fontSize: "14px", color: "#6b7280" }}>
-              Já tem conta? <a href="/" style={{ color: "#0d9488" }}>
-  Entrar
-</a>
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: "14px",
+                color: "#6b7280",
+              }}
+            >
+              Já tem conta?{" "}
+              <a href="/" style={{ color: "#0d9488" }}>
+                Entrar
+              </a>
             </p>
           </div>
         </div>
@@ -125,7 +178,8 @@ export default function RegisterPage() {
           </h2>
 
           <p style={{ marginTop: "12px", opacity: 0.7 }}>
-            Plataforma completa para captar, avaliar e gerenciar creators afiliados.
+            Plataforma completa para captar, avaliar e gerenciar creators
+            afiliados.
           </p>
         </div>
       </section>
@@ -144,8 +198,9 @@ const inputStyle = {
   width: "100%",
   borderRadius: "6px",
   border: "1px solid #e5e7eb",
-  padding: "10px 12px",
+  padding: "10px 48px 10px 12px",
   fontSize: "14px",
+  boxSizing: "border-box" as const,
 };
 
 const buttonStyle = {
@@ -160,10 +215,11 @@ const buttonStyle = {
 
 const showButton = {
   position: "absolute" as const,
-  right: "8px",
+  right: "10px",
   top: "50%",
   transform: "translateY(-50%)",
   fontSize: "12px",
+  color: "#6b7280",
   background: "transparent",
   border: "none",
   cursor: "pointer",
