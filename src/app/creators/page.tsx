@@ -262,92 +262,99 @@ export default function CreatorsPage() {
             }}
           >
             {filteredCreators.map((c) => (
-              <a
+              <div
                 key={c.creator_id}
-                href={`/creators/detail?creator_id=${c.creator_id}`}
                 style={{
                   background: "white",
                   borderRadius: "10px",
                   padding: "16px",
                   border: "1px solid #e5e7eb",
-                  textDecoration: "none",
                   color: "inherit",
                   display: "block",
                 }}
               >
-                <div
+                <a
+                  href={`/creators/detail?creator_id=${c.creator_id}`}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "12px",
+                    textDecoration: "none",
+                    color: "inherit",
+                    display: "block",
                   }}
                 >
                   <div
                     style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "999px",
-                      background: "#fde68a",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "14px",
+                      gap: "10px",
+                      marginBottom: "12px",
                     }}
                   >
-                    👤
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontSize: "14px", margin: 0 }}>
-                      {c.nome || "Sem nome"}
-                    </h3>
-                    <p
+                    <div
                       style={{
-                        fontSize: "12px",
-                        color: "#6b7280",
-                        margin: 0,
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "999px",
+                        background: "#fde68a",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "14px",
                       }}
                     >
-                      @{c.instagram || "-"}
-                    </p>
-                  </div>
-                </div>
+                      👤
+                    </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "8px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div style={metricBox}>
-                    <div style={metricLabel}>Status</div>
-                    <div style={metricValue}>{c.status || "-"}</div>
-                  </div>
-
-                  <div style={metricBox}>
-                    <div style={metricLabel}>Score Fit</div>
-                    <div style={metricValue}>
-                      {c.score_total !== null ? c.score_total : "-"}
+                    <div>
+                      <h3 style={{ fontSize: "14px", margin: 0 }}>
+                        {c.nome || "Sem nome"}
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: "12px",
+                          color: "#6b7280",
+                          margin: 0,
+                        }}
+                      >
+                        @{c.instagram || "-"}
+                      </p>
                     </div>
                   </div>
 
-                  <div style={metricBox}>
-                    <div style={metricLabel}>Instagram</div>
-                    <div style={metricValue}>@{c.instagram || "-"}</div>
-                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "8px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div style={metricBox}>
+                      <div style={metricLabel}>Status</div>
+                      <div style={metricValue}>{c.status || "-"}</div>
+                    </div>
 
-                  <div style={metricBox}>
-                    <div style={metricLabel}>Criado em</div>
-                    <div style={metricValue}>
-                      {c.criado_em
-                        ? new Date(c.criado_em).toLocaleDateString("pt-BR")
-                        : "-"}
+                    <div style={metricBox}>
+                      <div style={metricLabel}>Score Fit</div>
+                      <div style={metricValue}>
+                        {c.score_total !== null ? c.score_total : "-"}
+                      </div>
+                    </div>
+
+                    <div style={metricBox}>
+                      <div style={metricLabel}>Instagram</div>
+                      <div style={metricValue}>@{c.instagram || "-"}</div>
+                    </div>
+
+                    <div style={metricBox}>
+                      <div style={metricLabel}>Criado em</div>
+                      <div style={metricValue}>
+                        {c.criado_em
+                          ? new Date(c.criado_em).toLocaleDateString("pt-BR")
+                          : "-"}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </a>
 
                 <div
                   style={{
@@ -383,11 +390,32 @@ export default function CreatorsPage() {
                     {c.status || "em_analise"}
                   </div>
 
-                  <span style={{ fontSize: "11px", color: "#6b7280" }}>
-                    Ver detalhes
-                  </span>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <a
+                      href={`/creators/detail?creator_id=${c.creator_id}`}
+                      style={{
+                        fontSize: "11px",
+                        color: "#6b7280",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Ver detalhes
+                    </a>
+
+                    <a
+                      href={`/creators/edit?creator_id=${c.creator_id}`}
+                      style={{
+                        fontSize: "11px",
+                        color: "#0f766e",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                      }}
+                    >
+                      Editar
+                    </a>
+                  </div>
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         )}
