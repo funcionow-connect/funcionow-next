@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import AppLayout from "@/components/AppLayout";
@@ -47,6 +47,20 @@ type Captacao = {
 };
 
 export default function EditCreatorPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppLayout>
+          <div style={{ color: "#6b7280", fontSize: "14px" }}>Carregando...</div>
+        </AppLayout>
+      }
+    >
+      <EditCreatorContent />
+    </Suspense>
+  );
+}
+
+function EditCreatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const creatorId = searchParams.get("creator_id");
