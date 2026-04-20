@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -138,6 +139,45 @@ export default function CreatorDetailPage() {
       <div style={{ background: "#f5f5f6" }}>
         <div
           style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <a
+            href="/creators"
+            style={{
+              fontSize: "12px",
+              color: "#6b7280",
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            ← Voltar
+          </a>
+
+          <a
+            href={`/creators/edit?creator_id=${creator.creator_id}`}
+            style={{
+              background: "linear-gradient(to right, #0f766e, #14b8a6)",
+              color: "white",
+              border: "none",
+              padding: "8px 14px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "12px",
+              fontWeight: 600,
+              textDecoration: "none",
+              display: "inline-block",
+            }}
+          >
+            Editar
+          </a>
+        </div>
+
+        <div
+          style={{
             background: "white",
             border: "1px solid #e5e7eb",
             borderRadius: "8px",
@@ -228,47 +268,67 @@ export default function CreatorDetailPage() {
             <div style={panelStyle}>
               <div style={panelTitle}>Perfil e Métricas</div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "10px",
-                  marginTop: "12px",
-                }}
-              >
-                <div style={metricCard}>
-                  <div style={metricLabel}>Score Fit</div>
-                  <div style={metricValue}>
-                    {creator.score_parcial !== null && creator.score_parcial !== undefined
-                      ? creator.score_parcial
-                      : "-"}
+              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={metricCard}>
+                    <div style={metricLabel}>Seguidores</div>
+                    <div style={metricValue}>
+                      {creator.seguidores !== null && creator.seguidores !== undefined
+                        ? creator.seguidores.toLocaleString("pt-BR")
+                        : "-"}
+                    </div>
+                  </div>
+
+                  <div style={metricCard}>
+                    <div style={metricLabel}>Engajamento</div>
+                    <div style={metricValue}>
+                      {creator.engajamento !== null && creator.engajamento !== undefined
+                        ? `${creator.engajamento}%`
+                        : "-"}
+                    </div>
                   </div>
                 </div>
 
-                <div style={metricCard}>
-                  <div style={metricLabel}>Engajamento</div>
-                  <div style={metricValue}>
-                    {creator.engajamento !== null && creator.engajamento !== undefined
-                      ? `${creator.engajamento}%`
-                      : "-"}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={metricCard}>
+                    <div style={metricLabel}>Score Fit</div>
+                    <div style={metricValue}>
+                      {creator.score_parcial !== null && creator.score_parcial !== undefined
+                        ? creator.score_parcial
+                        : "-"}
+                    </div>
                   </div>
-                </div>
 
-                <div style={metricCard}>
-                  <div style={metricLabel}>Seguidores</div>
-                  <div style={metricValue}>
-                    {creator.seguidores !== null && creator.seguidores !== undefined
-                      ? creator.seguidores.toLocaleString("pt-BR")
-                      : "-"}
+                  <div style={metricCard}>
+                    <div style={metricLabel}>Curtidas médias</div>
+                    <div style={metricValue}>
+                      {creator.curtidas_medias !== null &&
+                      creator.curtidas_medias !== undefined
+                        ? creator.curtidas_medias.toLocaleString("pt-BR")
+                        : "-"}
+                    </div>
                   </div>
-                </div>
 
-                <div style={metricCard}>
-                  <div style={metricLabel}>Curtidas médias</div>
-                  <div style={metricValue}>
-                    {creator.curtidas_medias !== null && creator.curtidas_medias !== undefined
-                      ? creator.curtidas_medias.toLocaleString("pt-BR")
-                      : "-"}
+                  <div style={metricCard}>
+                    <div style={metricLabel}>Comentários médios</div>
+                    <div style={metricValue}>
+                      {creator.comentarios_medios !== null &&
+                      creator.comentarios_medios !== undefined
+                        ? creator.comentarios_medios.toLocaleString("pt-BR")
+                        : "-"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -318,38 +378,38 @@ export default function CreatorDetailPage() {
                   }
                 />
                 <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "8px 0",
-    borderBottom: "1px solid #f1f5f9",
-    fontSize: "12px",
-    gap: "16px",
-  }}
->
-  <span style={{ color: "#6b7280" }}>Instagram</span>
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #f1f5f9",
+                    fontSize: "12px",
+                    gap: "16px",
+                  }}
+                >
+                  <span style={{ color: "#6b7280" }}>Instagram</span>
 
-  {creator.instagram ? (
-    <a
-      href={
-        creator.instagram_url ||
-        `https://instagram.com/${creator.instagram}`
-      }
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{
-        color: "#0f766e",
-        fontWeight: 600,
-        textAlign: "right",
-      }}
-    >
-      @{creator.instagram}
-    </a>
-  ) : (
-    <span style={{ color: "#111827", fontWeight: 600 }}>-</span>
-  )}
-</div>
+                  {creator.instagram ? (
+                    <a
+                      href={
+                        creator.instagram_url ||
+                        `https://instagram.com/${creator.instagram}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: "#0f766e",
+                        fontWeight: 600,
+                        textAlign: "right",
+                      }}
+                    >
+                      @{creator.instagram}
+                    </a>
+                  ) : (
+                    <span style={{ color: "#111827", fontWeight: 600 }}>-</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
