@@ -170,23 +170,43 @@ function CreatorDetailContent() {
             ← Voltar
           </a>
 
-          <a
-            href={`/creators/edit?creator_id=${creator.creator_id}`}
-            style={{
-              background: "linear-gradient(to right, #0f766e, #14b8a6)",
-              color: "white",
-              border: "none",
-              padding: "8px 14px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "12px",
-              fontWeight: 600,
-              textDecoration: "none",
-              display: "inline-block",
-            }}
-          >
-            Editar
-          </a>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <a
+              href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+              style={{
+                background: "white",
+                color: "#0f766e",
+                border: "1px solid #99f6e4",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              Avaliar
+            </a>
+
+            <a
+              href={`/creators/edit?creator_id=${creator.creator_id}`}
+              style={{
+                background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                color: "white",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              Editar
+            </a>
+          </div>
         </div>
 
         <div
