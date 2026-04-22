@@ -35,6 +35,9 @@ export default function AvaliacoesPage() {
   const [loading, setLoading] = useState(true);
   const [savingCriterio, setSavingCriterio] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [deletingCriterioId, setDeletingCriterioId] = useState<string | null>(
+    null
+  );
 
   const [criterios, setCriterios] = useState<Criterio[]>([]);
   const [etapas, setEtapas] = useState<Etapa[]>([]);
@@ -49,86 +52,92 @@ export default function AvaliacoesPage() {
   const [permitirPotencial, setPermitirPotencial] = useState(true);
 
   const loadPage = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session?.user) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("empresa_id")
-      .eq("usuario_id", session.user.id)
-      .single<UsuarioEmpresa>();
-
-    if (usuarioError || !usuario?.empresa_id) {
-      console.error("Erro ao buscar empresa do usuário:", usuarioError);
-      setLoading(false);
-      return;
-    }
-
-    setEmpresaId(usuario.empresa_id);
-
-    const [criteriosRes, etapasRes, configRes] = await Promise.all([
-      supabase
-        .from("criterios_avaliacao")
-        .select("criterio_id, nome, peso, tipo_resposta, ordem, etapa_id")
-        .eq("empresa_id", usuario.empresa_id)
-        .order("ordem", { ascending: true, nullsFirst: false })
-        .order("nome", { ascending: true }),
-      supabase
-        .from("funil_etapas")
-        .select("etapa_id, nome, ordem")
-        .eq("empresa_id", usuario.empresa_id)
-        .order("ordem", { ascending: true })
-        .order("nome", { ascending: true }),
-      supabase
-        .from("configuracoes_funil")
-        .select("empresa_id, min_score_aprovacao, permitir_potencial")
-        .eq("empresa_id", usuario.empresa_id)
-        .maybeSingle<ConfiguracaoFunil>(),
-    ]);
-
-    if (criteriosRes.error) {
-      console.error("Erro ao buscar critérios:", criteriosRes.error);
-      setCriterios([]);
-    } else {
-      setCriterios((criteriosRes.data as Criterio[]) || []);
-    }
-
-    if (etapasRes.error) {
-      console.error("Erro ao buscar etapas:", etapasRes.error);
-      setEtapas([]);
-    } else {
-      const etapasData = (etapasRes.data as Etapa[]) || [];
-      setEtapas(etapasData);
-
-      if (etapasData.length > 0 && !etapaId) {
-        setEtapaId(etapasData[0].etapa_id);
+      if (!session?.user) {
+        setLoading(false);
+        return;
       }
-    }
 
-    if (configRes.error) {
-      console.error("Erro ao buscar configurações do funil:", configRes.error);
-    } else if (configRes.data) {
-      setMinScoreAprovacao(
-        configRes.data.min_score_aprovacao !== null &&
-          configRes.data.min_score_aprovacao !== undefined
-          ? String(configRes.data.min_score_aprovacao)
-          : "7"
-      );
-      setPermitirPotencial(configRes.data.permitir_potencial ?? true);
-    } else {
-      setMinScoreAprovacao("7");
-      setPermitirPotencial(true);
-    }
+      const { data: usuario, error: usuarioError } = await supabase
+        .from("usuarios")
+        .select("empresa_id")
+        .eq("usuario_id", session.user.id)
+        .single<UsuarioEmpresa>();
 
-    setLoading(false);
+      if (usuarioError || !usuario?.empresa_id) {
+        console.error("Erro ao buscar empresa do usuário:", usuarioError);
+        alert("Não foi possível identificar a empresa do usuário.");
+        setLoading(false);
+        return;
+      }
+
+      setEmpresaId(usuario.empresa_id);
+
+      const [criteriosRes, etapasRes, configRes] = await Promise.all([
+        supabase
+          .from("criterios_avaliacao")
+          .select("criterio_id, nome, peso, tipo_resposta, ordem, etapa_id")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("ordem", { ascending: true, nullsFirst: false })
+          .order("nome", { ascending: true }),
+        supabase
+          .from("funil_etapas")
+          .select("etapa_id, nome, ordem")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("ordem", { ascending: true })
+          .order("nome", { ascending: true }),
+        supabase
+          .from("configuracoes_funil")
+          .select("empresa_id, min_score_aprovacao, permitir_potencial")
+          .eq("empresa_id", usuario.empresa_id)
+          .maybeSingle<ConfiguracaoFunil>(),
+      ]);
+
+      if (criteriosRes.error) {
+        console.error("Erro ao buscar critérios:", criteriosRes.error);
+        setCriterios([]);
+      } else {
+        setCriterios((criteriosRes.data as Criterio[]) || []);
+      }
+
+      if (etapasRes.error) {
+        console.error("Erro ao buscar etapas:", etapasRes.error);
+        setEtapas([]);
+      } else {
+        const etapasData = (etapasRes.data as Etapa[]) || [];
+        setEtapas(etapasData);
+
+        if (etapasData.length > 0) {
+          setEtapaId((prev) => prev || etapasData[0].etapa_id);
+        }
+      }
+
+      if (configRes.error) {
+        console.error("Erro ao buscar configurações do funil:", configRes.error);
+      } else if (configRes.data) {
+        setMinScoreAprovacao(
+          configRes.data.min_score_aprovacao !== null &&
+            configRes.data.min_score_aprovacao !== undefined
+            ? String(configRes.data.min_score_aprovacao)
+            : "7"
+        );
+        setPermitirPotencial(configRes.data.permitir_potencial ?? true);
+      } else {
+        setMinScoreAprovacao("7");
+        setPermitirPotencial(true);
+      }
+    } catch (err) {
+      console.error("Erro inesperado ao carregar avaliações:", err);
+      alert("Erro de conexão ao carregar avaliações.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -146,108 +155,202 @@ export default function AvaliacoesPage() {
     });
   }, [criterios, etapas]);
 
-  const handleCreateCriterio = async () => {
-    if (!nomeCriterio.trim()) {
-      alert("Digite o nome do critério.");
-      return;
-    }
+  const proximaOrdem = useMemo(() => {
+    const ordensValidas = criterios
+      .map((c) => c.ordem)
+      .filter((ordem): ordem is number => ordem !== null && ordem !== undefined);
 
-    if (!empresaId) {
-      alert("Empresa não encontrada.");
-      return;
-    }
+    if (ordensValidas.length === 0) return 1;
 
-    if (!etapaId) {
-      alert("Selecione a etapa.");
-      return;
-    }
+    return Math.max(...ordensValidas) + 1;
+  }, [criterios]);
 
-    setSavingCriterio(true);
-
-    const pesoNumerico = Number(pesoCriterio.replace(",", "."));
-    const ordemNumerica = ordemCriterio ? Number(ordemCriterio) : null;
-
-    const { error } = await supabase.from("criterios_avaliacao").insert([
-      {
-        empresa_id: empresaId,
-        etapa_id: etapaId,
-        nome: nomeCriterio.trim(),
-        peso: Number.isNaN(pesoNumerico) ? 1 : pesoNumerico,
-        tipo_resposta: tipoResposta,
-        ordem: ordemNumerica,
-      },
-    ]);
-
-    setSavingCriterio(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setNomeCriterio("");
-    setPesoCriterio("");
-    setTipoResposta("sim_nao");
-    setOrdemCriterio("");
-
-    await loadPage();
+  const getTipoRespostaLabel = (tipo: string | null) => {
+    if (tipo === "sim_nao") return "Sim / Não";
+    if (tipo === "escala") return "Escala";
+    return tipo || "-";
   };
 
-  const handleSaveConfig = async () => {
-    if (!empresaId) {
-      alert("Empresa não encontrada.");
-      return;
-    }
+  const handleCreateCriterio = async () => {
+    try {
+      const nomeLimpo = nomeCriterio.trim();
 
-    setSavingConfig(true);
+      if (!nomeLimpo) {
+        alert("Digite o nome do critério.");
+        return;
+      }
 
-    const minScore = Number(minScoreAprovacao.replace(",", "."));
+      if (!empresaId) {
+        alert("Empresa não encontrada.");
+        return;
+      }
 
-    const { data: existingConfig, error: findError } = await supabase
-      .from("configuracoes_funil")
-      .select("empresa_id")
-      .eq("empresa_id", empresaId)
-      .maybeSingle();
+      if (!etapaId) {
+        alert("Selecione a etapa.");
+        return;
+      }
 
-    if (findError) {
-      setSavingConfig(false);
-      alert(findError.message);
-      return;
-    }
+      const duplicado = criterios.some(
+        (criterio) =>
+          criterio.nome.trim().toLowerCase() === nomeLimpo.toLowerCase()
+      );
 
-    let saveError = null;
+      if (duplicado) {
+        alert("Já existe um critério com esse nome.");
+        return;
+      }
 
-    if (existingConfig) {
-      const { error } = await supabase
-        .from("configuracoes_funil")
-        .update({
-          min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
-          permitir_potencial: permitirPotencial,
-        })
-        .eq("empresa_id", empresaId);
+      setSavingCriterio(true);
 
-      saveError = error;
-    } else {
-      const { error } = await supabase.from("configuracoes_funil").insert([
+      const pesoNumerico = Number(pesoCriterio.replace(",", "."));
+      const ordemDigitada = ordemCriterio ? Number(ordemCriterio) : null;
+
+      const ordemFinal =
+        ordemDigitada !== null && !Number.isNaN(ordemDigitada) && ordemDigitada > 0
+          ? ordemDigitada
+          : proximaOrdem;
+
+      const { error } = await supabase.from("criterios_avaliacao").insert([
         {
           empresa_id: empresaId,
-          min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
-          permitir_potencial: permitirPotencial,
+          etapa_id: etapaId,
+          nome: nomeLimpo,
+          peso:
+            Number.isNaN(pesoNumerico) || pesoCriterio.trim() === ""
+              ? 1
+              : pesoNumerico,
+          tipo_resposta: tipoResposta,
+          ordem: ordemFinal,
         },
       ]);
 
-      saveError = error;
+      if (error) {
+        console.error("Erro ao inserir critério:", error);
+        alert(error.message);
+        return;
+      }
+
+      setNomeCriterio("");
+      setPesoCriterio("");
+      setTipoResposta("sim_nao");
+      setOrdemCriterio("");
+
+      await loadPage();
+      alert("Critério criado com sucesso.");
+    } catch (err) {
+      console.error("Erro inesperado ao criar critério:", err);
+      alert("Erro de conexão. Tente novamente.");
+    } finally {
+      setSavingCriterio(false);
     }
+  };
 
-    setSavingConfig(false);
+  const handleDeleteCriterio = async (criterioId: string, nome: string) => {
+    const confirmado = window.confirm(`Excluir o critério "${nome}"?`);
 
-    if (saveError) {
-      alert(saveError.message);
+    if (!confirmado) return;
+
+    if (!empresaId) {
+      alert("Empresa não encontrada.");
       return;
     }
 
-    alert("Configurações gerais salvas com sucesso.");
-    await loadPage();
+    try {
+      setDeletingCriterioId(criterioId);
+
+      const { error } = await supabase
+        .from("criterios_avaliacao")
+        .delete()
+        .eq("criterio_id", criterioId);
+
+      if (error) {
+        console.error("Erro ao excluir critério:", error);
+        alert(error.message);
+        return;
+      }
+
+      const { error: reorderError } = await supabase.rpc(
+        "reordenar_criterios_avaliacao",
+        { p_empresa_id: empresaId }
+      );
+
+      if (reorderError) {
+        console.error("Erro ao reordenar critérios:", reorderError);
+        alert(reorderError.message);
+        return;
+      }
+
+      await loadPage();
+      alert("Critério excluído com sucesso.");
+    } catch (err) {
+      console.error("Erro inesperado ao excluir critério:", err);
+      alert("Erro de conexão ao excluir critério.");
+    } finally {
+      setDeletingCriterioId(null);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    try {
+      if (!empresaId) {
+        alert("Empresa não encontrada.");
+        return;
+      }
+
+      setSavingConfig(true);
+
+      const minScore = Number(minScoreAprovacao.replace(",", "."));
+
+      const { data: existingConfig, error: findError } = await supabase
+        .from("configuracoes_funil")
+        .select("empresa_id")
+        .eq("empresa_id", empresaId)
+        .maybeSingle();
+
+      if (findError) {
+        console.error("Erro ao buscar configuração existente:", findError);
+        alert(findError.message);
+        return;
+      }
+
+      let saveError = null;
+
+      if (existingConfig) {
+        const { error } = await supabase
+          .from("configuracoes_funil")
+          .update({
+            min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
+            permitir_potencial: permitirPotencial,
+          })
+          .eq("empresa_id", empresaId);
+
+        saveError = error;
+      } else {
+        const { error } = await supabase.from("configuracoes_funil").insert([
+          {
+            empresa_id: empresaId,
+            min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
+            permitir_potencial: permitirPotencial,
+          },
+        ]);
+
+        saveError = error;
+      }
+
+      if (saveError) {
+        console.error("Erro ao salvar configurações:", saveError);
+        alert(saveError.message);
+        return;
+      }
+
+      await loadPage();
+      alert("Configurações gerais salvas com sucesso.");
+    } catch (err) {
+      console.error("Erro inesperado ao salvar configurações:", err);
+      alert("Erro de conexão. Tente novamente.");
+    } finally {
+      setSavingConfig(false);
+    }
   };
 
   return (
@@ -287,7 +390,7 @@ export default function AvaliacoesPage() {
             </div>
 
             <div style={fieldWrap}>
-              <div style={label}>Peso</div>
+              <div style={label}>Peso do critério</div>
               <input
                 style={input}
                 value={pesoCriterio}
@@ -304,8 +407,8 @@ export default function AvaliacoesPage() {
                 value={tipoResposta}
                 onChange={(e) => setTipoResposta(e.target.value)}
               >
-                <option value="sim_nao">sim_nao</option>
-                <option value="escala">escala</option>
+                <option value="sim_nao">Sim / Não</option>
+                <option value="escala">Escala</option>
               </select>
             </div>
 
@@ -315,7 +418,7 @@ export default function AvaliacoesPage() {
                 style={input}
                 value={ordemCriterio}
                 onChange={(e) => setOrdemCriterio(e.target.value)}
-                placeholder="Ex: 1"
+                placeholder={`Próxima ordem: ${proximaOrdem}`}
                 inputMode="numeric"
               />
             </div>
@@ -354,7 +457,7 @@ export default function AvaliacoesPage() {
             <span>PESO</span>
             <span>TIPO</span>
             <span>ORDEM</span>
-            <span>ETAPA</span>
+            <span>AÇÕES</span>
           </div>
 
           {loading ? (
@@ -368,9 +471,19 @@ export default function AvaliacoesPage() {
               <div key={item.criterio_id} style={row}>
                 <span style={{ fontWeight: 500 }}>{item.nome}</span>
                 <span>{item.peso ?? "-"}</span>
-                <span>{item.tipo_resposta ?? "-"}</span>
+                <span>{getTipoRespostaLabel(item.tipo_resposta)}</span>
                 <span>{item.ordem ?? "-"}</span>
-                <span>{item.etapaNome}</span>
+                <div>
+                  <button
+                    onClick={() => handleDeleteCriterio(item.criterio_id, item.nome)}
+                    disabled={deletingCriterioId === item.criterio_id}
+                    style={deleteButton}
+                  >
+                    {deletingCriterioId === item.criterio_id
+                      ? "Excluindo..."
+                      : "Excluir"}
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -488,6 +601,17 @@ const primaryButton = {
   border: "none",
   borderRadius: "8px",
   padding: "10px 14px",
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const deleteButton = {
+  background: "white",
+  color: "#b91c1c",
+  border: "1px solid #fecaca",
+  borderRadius: "6px",
+  padding: "6px 10px",
   fontSize: "12px",
   fontWeight: 600,
   cursor: "pointer",
