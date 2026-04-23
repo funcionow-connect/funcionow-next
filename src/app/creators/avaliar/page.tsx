@@ -54,6 +54,12 @@ type RespostaState = {
   pontuacao: number;
 };
 
+type ConfigFunil = {
+  min_score_aprovacao: number;
+  min_score_potencial: number;
+  permitir_potencial: boolean;
+};
+
 export default function AvaliarCreatorPage() {
   return (
     <Suspense
@@ -73,6 +79,7 @@ function AvaliarCreatorContent() {
   const searchParams = useSearchParams();
   const creatorId = searchParams.get("creator_id");
 
+  const [configFunil, setConfigFunil] = useState<ConfigFunil | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -112,7 +119,7 @@ function AvaliarCreatorContent() {
 
         setEmpresaId(usuario.empresa_id);
 
-        const [creatorRes, criteriosRes, etapasRes] = await Promise.all([
+        const [creatorRes, criteriosRes, etapasRes, configRes] = await Promise.all([
           supabase
             .from("v_creator_detalhe")
             .select(
@@ -135,6 +142,12 @@ function AvaliarCreatorContent() {
             .eq("empresa_id", usuario.empresa_id)
             .order("ordem", { ascending: true })
             .order("nome", { ascending: true }),
+
+          supabase
+            .from("configuracoes_funil")
+            .select("min_score_aprovacao, min_score_potencial, permitir_potencial")
+            .eq("empresa_id", usuario.empresa_id)
+            .maybeSingle(),
         ]);
 
         if (creatorRes.error) {
@@ -181,6 +194,20 @@ function AvaliarCreatorContent() {
           const etapaPadrao = etapas[0]?.etapa_id || null;
           const etapaDoCreator = creatorRes.data?.etapa_id || null;
           setEtapaIdAtual(etapaDoCreator || etapaPadrao);
+        }
+
+        if (configRes.data) {
+          setConfigFunil({
+            min_score_aprovacao: Number(configRes.data.min_score_aprovacao ?? 7),
+            min_score_potencial: Number(configRes.data.min_score_potencial ?? 5),
+            permitir_potencial: configRes.data.permitir_potencial ?? true,
+          });
+        } else {
+          setConfigFunil({
+            min_score_aprovacao: 7,
+            min_score_potencial: 5,
+            permitir_potencial: true,
+          });
         }
       } catch (err) {
         console.error("Erro inesperado ao carregar avaliação:", err);
@@ -247,6 +274,23 @@ function AvaliarCreatorContent() {
     return Number(((pontuacaoBruta / pesoMaximo) * 10).toFixed(2));
   }, [pontuacaoBruta, pesoMaximo]);
 
+  const statusPrevisto = useMemo(() => {
+    if (!configFunil) return "em_analise";
+
+    if (notaPrevista >= configFunil.min_score_aprovacao) {
+      return "aprovado";
+    }
+
+    if (
+      configFunil.permitir_potencial &&
+      notaPrevista >= configFunil.min_score_potencial
+    ) {
+      return "potencial";
+    }
+
+    return "reprovado";
+  }, [notaPrevista, configFunil]);
+
   const handleSalvar = async () => {
     try {
       if (!creatorId || !empresaId || !creator) {
@@ -286,7 +330,7 @@ function AvaliarCreatorContent() {
         p_respostas: respostasPayload,
         p_avaliacao_id: creator.avaliacao_id || null,
         p_etapa_id: etapaIdAtual,
-        p_status_decisao: null,
+        p_status_decisao: statusPrevisto,
       });
 
       if (error) {
@@ -407,25 +451,25 @@ function AvaliarCreatorContent() {
                 padding: "4px 8px",
                 borderRadius: "6px",
                 background:
-                  creator.status === "aprovado"
+                  statusPrevisto === "aprovado"
                     ? "#dcfce7"
-                    : creator.status === "reprovado"
+                    : statusPrevisto === "reprovado"
                     ? "#fee2e2"
-                    : creator.status === "potencial"
+                    : statusPrevisto === "potencial"
                     ? "#dbeafe"
                     : "#fef9c3",
                 color:
-                  creator.status === "aprovado"
+                  statusPrevisto === "aprovado"
                     ? "#166534"
-                    : creator.status === "reprovado"
+                    : statusPrevisto === "reprovado"
                     ? "#991b1b"
-                    : creator.status === "potencial"
+                    : statusPrevisto === "potencial"
                     ? "#1d4ed8"
                     : "#854d0e",
                 fontWeight: 600,
               }}
             >
-              {creator.status || "em_analise"}
+              {statusPrevisto}
             </div>
           </div>
         </div>

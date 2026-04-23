@@ -26,6 +26,7 @@ type Criterio = {
 type ConfiguracaoFunil = {
   empresa_id: string;
   min_score_aprovacao: number | null;
+  min_score_potencial: number | null;
   permitir_potencial: boolean | null;
 };
 
@@ -35,9 +36,7 @@ export default function AvaliacoesPage() {
   const [loading, setLoading] = useState(true);
   const [savingCriterio, setSavingCriterio] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
-  const [deletingCriterioId, setDeletingCriterioId] = useState<string | null>(
-    null
-  );
+  const [deletingCriterioId, setDeletingCriterioId] = useState<string | null>(null);
 
   const [criterios, setCriterios] = useState<Criterio[]>([]);
   const [etapas, setEtapas] = useState<Etapa[]>([]);
@@ -49,6 +48,7 @@ export default function AvaliacoesPage() {
   const [etapaId, setEtapaId] = useState("");
 
   const [minScoreAprovacao, setMinScoreAprovacao] = useState("7");
+  const [minScorePotencial, setMinScorePotencial] = useState("5");
   const [permitirPotencial, setPermitirPotencial] = useState(true);
 
   const loadPage = async () => {
@@ -86,15 +86,19 @@ export default function AvaliacoesPage() {
           .eq("empresa_id", usuario.empresa_id)
           .order("ordem", { ascending: true, nullsFirst: false })
           .order("nome", { ascending: true }),
+
         supabase
           .from("funil_etapas")
           .select("etapa_id, nome, ordem")
           .eq("empresa_id", usuario.empresa_id)
           .order("ordem", { ascending: true })
           .order("nome", { ascending: true }),
+
         supabase
           .from("configuracoes_funil")
-          .select("empresa_id, min_score_aprovacao, permitir_potencial")
+          .select(
+            "empresa_id, min_score_aprovacao, min_score_potencial, permitir_potencial"
+          )
           .eq("empresa_id", usuario.empresa_id)
           .maybeSingle<ConfiguracaoFunil>(),
       ]);
@@ -127,9 +131,18 @@ export default function AvaliacoesPage() {
             ? String(configRes.data.min_score_aprovacao)
             : "7"
         );
+
+        setMinScorePotencial(
+          configRes.data.min_score_potencial !== null &&
+            configRes.data.min_score_potencial !== undefined
+            ? String(configRes.data.min_score_potencial)
+            : "5"
+        );
+
         setPermitirPotencial(configRes.data.permitir_potencial ?? true);
       } else {
         setMinScoreAprovacao("7");
+        setMinScorePotencial("5");
         setPermitirPotencial(true);
       }
     } catch (err) {
@@ -300,6 +313,13 @@ export default function AvaliacoesPage() {
       setSavingConfig(true);
 
       const minScore = Number(minScoreAprovacao.replace(",", "."));
+      const minScorePot = Number(minScorePotencial.replace(",", "."));
+
+      const configPayload = {
+        min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
+        min_score_potencial: Number.isNaN(minScorePot) ? 5 : minScorePot,
+        permitir_potencial: permitirPotencial,
+      };
 
       const { data: existingConfig, error: findError } = await supabase
         .from("configuracoes_funil")
@@ -318,10 +338,7 @@ export default function AvaliacoesPage() {
       if (existingConfig) {
         const { error } = await supabase
           .from("configuracoes_funil")
-          .update({
-            min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
-            permitir_potencial: permitirPotencial,
-          })
+          .update(configPayload)
           .eq("empresa_id", empresaId);
 
         saveError = error;
@@ -329,8 +346,7 @@ export default function AvaliacoesPage() {
         const { error } = await supabase.from("configuracoes_funil").insert([
           {
             empresa_id: empresaId,
-            min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
-            permitir_potencial: permitirPotencial,
+            ...configPayload,
           },
         ]);
 
@@ -497,7 +513,7 @@ export default function AvaliacoesPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "1fr 1fr 1fr",
               gap: "24px",
               alignItems: "end",
             }}
@@ -508,6 +524,16 @@ export default function AvaliacoesPage() {
                 style={input}
                 value={minScoreAprovacao}
                 onChange={(e) => setMinScoreAprovacao(e.target.value)}
+                inputMode="decimal"
+              />
+            </div>
+
+            <div>
+              <div style={label}>Nota mínima para potencial</div>
+              <input
+                style={input}
+                value={minScorePotencial}
+                onChange={(e) => setMinScorePotencial(e.target.value)}
                 inputMode="decimal"
               />
             </div>
