@@ -26,6 +26,23 @@ type UsuarioEmpresa = {
   empresa_id: string;
 };
 
+type Categoria = {
+  categoria_id: string;
+  nome: string;
+};
+
+type Segmento = {
+  segmento_id: string;
+  nome: string;
+  categoria_id: string | null;
+};
+
+type AreaSpeaker = {
+  area_speaker_id: string;
+  nome: string;
+  segmento_id: string;
+};
+
 export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [search, setSearch] = useState("");
@@ -35,8 +52,17 @@ export default function CreatorsPage() {
   const [openModal, setOpenModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+
   const [nome, setNome] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [categoriaId, setCategoriaId] = useState("");
+  const [segmentoId, setSegmentoId] = useState("");
+  const [areaSpeakerId, setAreaSpeakerId] = useState("");
+
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [segmentos, setSegmentos] = useState<Segmento[]>([]);
+  const [areasSpeaker, setAreasSpeaker] = useState<AreaSpeaker[]>([]);
 
   const loadCreators = async () => {
     setLoading(true);
@@ -64,19 +90,62 @@ export default function CreatorsPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("v_creator_detalhe")
-      .select(
-        "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
-      )
-      .eq("empresa_id", usuario.empresa_id)
-      .order("criado_em", { ascending: false });
+    setEmpresaId(usuario.empresa_id);
 
-    if (error) {
-      console.error("Erro ao buscar creators:", error);
+    const [creatorsRes, categoriasRes, segmentosRes, areasRes] = await Promise.all([
+      supabase
+        .from("v_creator_detalhe")
+        .select(
+          "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
+        )
+        .eq("empresa_id", usuario.empresa_id)
+        .order("criado_em", { ascending: false }),
+
+      supabase
+        .from("categorias")
+        .select("categoria_id, nome")
+        .eq("empresa_id", usuario.empresa_id)
+        .order("nome", { ascending: true }),
+
+      supabase
+        .from("segmentos")
+        .select("segmento_id, nome, categoria_id")
+        .eq("empresa_id", usuario.empresa_id)
+        .order("nome", { ascending: true }),
+
+      supabase
+        .from("areas_speaker")
+        .select("area_speaker_id, nome, segmento_id")
+        .eq("empresa_id", usuario.empresa_id)
+        .order("nome", { ascending: true }),
+    ]);
+
+    if (creatorsRes.error) {
+      console.error("Erro ao buscar creators:", creatorsRes.error);
       setCreators([]);
     } else {
-      setCreators((data as Creator[]) || []);
+      setCreators((creatorsRes.data as Creator[]) || []);
+    }
+
+    if (categoriasRes.error) {
+      console.error("Erro ao buscar categorias:", categoriasRes.error);
+      setCategorias([]);
+    } else {
+      setCategorias((categoriasRes.data as Categoria[]) || []);
+    }
+
+    if (segmentosRes.error) {
+      console.error("Erro ao buscar segmentos:", segmentosRes.error);
+      setSegmentos([]);
+    } else {
+      setSegmentos((segmentosRes.data as Segmento[]) || []);
+    }
+
+    if (areasRes.error) {
+      console.error("Erro ao buscar áreas speaker:", areasRes.error);
+      setAreasSpeaker([]);
+    } else {
+      setAreasSpeaker((areasRes.data as AreaSpeaker[]) || []);
     }
 
     setLoading(false);
@@ -86,57 +155,94 @@ export default function CreatorsPage() {
     setTimeout(loadCreators, 300);
   }, []);
 
+  const segmentosFiltrados = useMemo(() => {
+    if (!categoriaId) return segmentos;
+    return segmentos.filter((segmento) => segmento.categoria_id === categoriaId);
+  }, [segmentos, categoriaId]);
+
+  const areasFiltradas = useMemo(() => {
+    if (!segmentoId) return [];
+    return areasSpeaker.filter((area) => area.segmento_id === segmentoId);
+  }, [areasSpeaker, segmentoId]);
+
+  const handleCategoriaChange = (value: string) => {
+    setCategoriaId(value);
+    setSegmentoId("");
+    setAreaSpeakerId("");
+  };
+
+  const handleSegmentoChange = (value: string) => {
+    setSegmentoId(value);
+    setAreaSpeakerId("");
+  };
+
+  const resetModalFields = () => {
+    setNome("");
+    setInstagram("");
+    setCategoriaId("");
+    setSegmentoId("");
+    setAreaSpeakerId("");
+  };
+
+  const handleCloseModal = () => {
+    resetModalFields();
+    setOpenModal(false);
+  };
+
   const handleCreateCreator = async () => {
     if (!nome.trim() || !instagram.trim()) {
       alert("Preencha nome e instagram.");
       return;
     }
 
+    if (!empresaId) {
+      alert("Empresa não encontrada.");
+      return;
+    }
+
     setSaving(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const instagramLimpo = instagram.replaceAll("@", "").trim();
 
-    const user = session?.user;
+    const { data: creatorCriado, error: creatorError } = await supabase
+      .from("creators")
+      .insert([
+        {
+          nome: nome.trim(),
+          instagram: instagramLimpo,
+          empresa_id: empresaId,
+          categoria_id: categoriaId || null,
+        },
+      ])
+      .select("creator_id")
+      .single();
 
-    if (!user) {
-      alert("Usuário não autenticado");
+    if (creatorError || !creatorCriado?.creator_id) {
       setSaving(false);
+      alert(creatorError?.message || "Erro ao cadastrar creator.");
       return;
     }
 
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("empresa_id")
-      .eq("usuario_id", user.id)
-      .single<UsuarioEmpresa>();
+    if (segmentoId || areaSpeakerId) {
+      const { error: captacaoError } = await supabase.from("creator_captacao").insert([
+        {
+          creator_id: creatorCriado.creator_id,
+          empresa_id: empresaId,
+          segmento_id: segmentoId || null,
+          area_speaker_id: areaSpeakerId || null,
+          atualizado_em: new Date().toISOString(),
+        },
+      ]);
 
-    if (usuarioError || !usuario?.empresa_id) {
-      alert("Erro ao buscar empresa do usuário");
-      setSaving(false);
-      return;
+      if (captacaoError) {
+        setSaving(false);
+        alert(captacaoError.message);
+        return;
+      }
     }
-
-    const instagramLimpo = instagram.replace("@", "").trim();
-
-    const { error } = await supabase.from("creators").insert([
-      {
-        nome: nome.trim(),
-        instagram: instagramLimpo,
-        empresa_id: usuario.empresa_id,
-      },
-    ]);
 
     setSaving(false);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setNome("");
-    setInstagram("");
+    resetModalFields();
     setOpenModal(false);
     await loadCreators();
   };
@@ -540,10 +646,7 @@ export default function CreatorsPage() {
                   Novo Creator
                 </h3>
 
-                <button
-                  onClick={() => setOpenModal(false)}
-                  style={closeButtonStyle}
-                >
+                <button onClick={handleCloseModal} style={closeButtonStyle}>
                   ×
                 </button>
               </div>
@@ -567,6 +670,61 @@ export default function CreatorsPage() {
                     onChange={(e) => setInstagram(e.target.value)}
                     style={inputStyle}
                   />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Categoria</label>
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => handleCategoriaChange(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Selecione</option>
+                    {categorias.map((categoria) => (
+                      <option
+                        key={categoria.categoria_id}
+                        value={categoria.categoria_id}
+                      >
+                        {categoria.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Segmento</label>
+                  <select
+                    value={segmentoId}
+                    onChange={(e) => handleSegmentoChange(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">Selecione</option>
+                    {segmentosFiltrados.map((segmento) => (
+                      <option key={segmento.segmento_id} value={segmento.segmento_id}>
+                        {segmento.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Área speaker</label>
+                  <select
+                    value={areaSpeakerId}
+                    onChange={(e) => setAreaSpeakerId(e.target.value)}
+                    style={inputStyle}
+                    disabled={!segmentoId}
+                  >
+                    <option value="">Selecione</option>
+                    {areasFiltradas.map((area) => (
+                      <option
+                        key={area.area_speaker_id}
+                        value={area.area_speaker_id}
+                      >
+                        {area.nome}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <button
@@ -656,6 +814,7 @@ const inputStyle = {
   padding: "10px 12px",
   fontSize: "13px",
   boxSizing: "border-box" as const,
+  background: "white",
 };
 
 const saveButtonStyle = {
