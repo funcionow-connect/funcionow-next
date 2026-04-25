@@ -43,10 +43,13 @@ type AreaSpeaker = {
   segmento_id: string;
 };
 
+type ViewMode = "cards" | "kanban" | "lista";
+
 export default function CreatorsPage() {
   const [creators, setCreators] = useState<Creator[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos os status");
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [loading, setLoading] = useState(true);
 
   const [openModal, setOpenModal] = useState(false);
@@ -92,33 +95,34 @@ export default function CreatorsPage() {
 
     setEmpresaId(usuario.empresa_id);
 
-    const [creatorsRes, categoriasRes, segmentosRes, areasRes] = await Promise.all([
-      supabase
-        .from("v_creator_detalhe")
-        .select(
-          "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
-        )
-        .eq("empresa_id", usuario.empresa_id)
-        .order("criado_em", { ascending: false }),
+    const [creatorsRes, categoriasRes, segmentosRes, areasRes] =
+      await Promise.all([
+        supabase
+          .from("v_creator_detalhe")
+          .select(
+            "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
+          )
+          .eq("empresa_id", usuario.empresa_id)
+          .order("criado_em", { ascending: false }),
 
-      supabase
-        .from("categorias")
-        .select("categoria_id, nome")
-        .eq("empresa_id", usuario.empresa_id)
-        .order("nome", { ascending: true }),
+        supabase
+          .from("categorias")
+          .select("categoria_id, nome")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("nome", { ascending: true }),
 
-      supabase
-        .from("segmentos")
-        .select("segmento_id, nome, categoria_id")
-        .eq("empresa_id", usuario.empresa_id)
-        .order("nome", { ascending: true }),
+        supabase
+          .from("segmentos")
+          .select("segmento_id, nome, categoria_id")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("nome", { ascending: true }),
 
-      supabase
-        .from("areas_speaker")
-        .select("area_speaker_id, nome, segmento_id")
-        .eq("empresa_id", usuario.empresa_id)
-        .order("nome", { ascending: true }),
-    ]);
+        supabase
+          .from("areas_speaker")
+          .select("area_speaker_id, nome, segmento_id")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("nome", { ascending: true }),
+      ]);
 
     if (creatorsRes.error) {
       console.error("Erro ao buscar creators:", creatorsRes.error);
@@ -224,15 +228,17 @@ export default function CreatorsPage() {
     }
 
     if (segmentoId || areaSpeakerId) {
-      const { error: captacaoError } = await supabase.from("creator_captacao").insert([
-        {
-          creator_id: creatorCriado.creator_id,
-          empresa_id: empresaId,
-          segmento_id: segmentoId || null,
-          area_speaker_id: areaSpeakerId || null,
-          atualizado_em: new Date().toISOString(),
-        },
-      ]);
+      const { error: captacaoError } = await supabase
+        .from("creator_captacao")
+        .insert([
+          {
+            creator_id: creatorCriado.creator_id,
+            empresa_id: empresaId,
+            segmento_id: segmentoId || null,
+            area_speaker_id: areaSpeakerId || null,
+            atualizado_em: new Date().toISOString(),
+          },
+        ]);
 
       if (captacaoError) {
         setSaving(false);
@@ -266,7 +272,8 @@ export default function CreatorsPage() {
 
       const matchesStatus =
         statusFilter === "Todos os status" ||
-        (c.status || "em_analise").toLowerCase() === statusFilter.toLowerCase();
+        (c.status || "em_analise").toLowerCase() ===
+          statusFilter.toLowerCase();
 
       return matchesSearch && matchesStatus;
     });
@@ -279,6 +286,15 @@ export default function CreatorsPage() {
 
     return ["Todos os status", ...unique];
   }, [creators]);
+
+  const kanbanColumns = useMemo(() => {
+    return [
+      { key: "em_analise", label: "Em análise" },
+      { key: "potencial", label: "Potencial" },
+      { key: "aprovado", label: "Aprovado" },
+      { key: "reprovado", label: "Reprovado" },
+    ];
+  }, []);
 
   const getScore = (creator: Creator) => {
     if (creator.score_parcial !== null && creator.score_parcial !== undefined) {
@@ -318,6 +334,238 @@ export default function CreatorsPage() {
       .slice(0, 2)
       .join("")
       .toUpperCase();
+  };
+
+  const statusBadgeStyle = (status: string | null) => ({
+    fontSize: "12px",
+    display: "inline-block",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    background:
+      status === "aprovado"
+        ? "#dcfce7"
+        : status === "reprovado"
+        ? "#fee2e2"
+        : status === "potencial"
+        ? "#dbeafe"
+        : "#fef9c3",
+    color:
+      status === "aprovado"
+        ? "#166534"
+        : status === "reprovado"
+        ? "#991b1b"
+        : status === "potencial"
+        ? "#1d4ed8"
+        : "#854d0e",
+    fontWeight: 600,
+    whiteSpace: "nowrap" as const,
+  });
+
+  const kanbanColumnStyle = (status: string) => ({
+    background:
+      status === "aprovado"
+        ? "#f0fdf4"
+        : status === "reprovado"
+        ? "#fef2f2"
+        : status === "potencial"
+        ? "#eff6ff"
+        : "#fefce8",
+    border:
+      status === "aprovado"
+        ? "1px solid #bbf7d0"
+        : status === "reprovado"
+        ? "1px solid #fecaca"
+        : status === "potencial"
+        ? "1px solid #bfdbfe"
+        : "1px solid #fde68a",
+    borderRadius: "12px",
+    padding: "10px",
+    minWidth: "220px",
+  });
+
+  const kanbanColumnTitleStyle = (status: string) => ({
+    fontSize: "13px",
+    fontWeight: 700,
+    color:
+      status === "aprovado"
+        ? "#166534"
+        : status === "reprovado"
+        ? "#991b1b"
+        : status === "potencial"
+        ? "#1d4ed8"
+        : "#854d0e",
+  });
+
+  const renderCreatorCard = (c: Creator) => {
+    const score = getScore(c);
+
+    return (
+      <div
+        key={c.creator_id}
+        style={{
+          background: "white",
+          borderRadius: "10px",
+          padding: "16px",
+          border: "1px solid #e5e7eb",
+          color: "inherit",
+          display: "block",
+        }}
+      >
+        <a
+          href={`/creators/detail?creator_id=${c.creator_id}`}
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            display: "block",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              style={{
+                width: "38px",
+                height: "38px",
+                borderRadius: "999px",
+                background: "#ccfbf1",
+                color: "#0f766e",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
+            >
+              {getInitials(c.nome)}
+            </div>
+
+            <div style={{ minWidth: 0 }}>
+              <h3
+                style={{
+                  fontSize: "14px",
+                  margin: 0,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {c.nome || "Sem nome"}
+              </h3>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#6b7280",
+                  margin: 0,
+                }}
+              >
+                @{c.instagram || "-"}
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px",
+              marginBottom: "12px",
+            }}
+          >
+            <div style={metricBox}>
+              <div style={metricLabel}>Categoria</div>
+              <div style={metricValue}>{c.categoria_nome || "-"}</div>
+            </div>
+
+            <div style={metricBox}>
+              <div style={metricLabel}>Score Fit</div>
+              <div style={metricValue}>{formatScore(score)}</div>
+            </div>
+
+            <div style={metricBox}>
+              <div style={metricLabel}>Segmento</div>
+              <div style={metricValue}>{c.segmento_nome || "-"}</div>
+            </div>
+
+            <div style={metricBox}>
+              <div style={metricLabel}>Área speaker</div>
+              <div style={metricValue}>{c.area_speaker_nome || "-"}</div>
+            </div>
+
+            <div style={metricBox}>
+              <div style={metricLabel}>Seguidores</div>
+              <div style={metricValue}>
+                {c.seguidores !== null && c.seguidores !== undefined
+                  ? c.seguidores.toLocaleString("pt-BR")
+                  : "-"}
+              </div>
+            </div>
+
+            <div style={metricBox}>
+              <div style={metricLabel}>Engajamento</div>
+              <div style={metricValue}>
+                {c.engajamento !== null && c.engajamento !== undefined
+                  ? `${c.engajamento}%`
+                  : "-"}
+              </div>
+            </div>
+          </div>
+        </a>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <div style={statusBadgeStyle(c.status)}>{formatStatus(c.status)}</div>
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <a
+              href={`/creators/detail?creator_id=${c.creator_id}`}
+              style={{
+                fontSize: "11px",
+                color: "#0f766e",
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              Ver detalhes
+            </a>
+
+            <a
+              href={`/creators/avaliar?creator_id=${c.creator_id}`}
+              style={{
+                fontSize: "11px",
+                color: "#1d4ed8",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Avaliar
+            </a>
+
+            <a
+              href={`/creators/edit?creator_id=${c.creator_id}`}
+              style={{
+                fontSize: "11px",
+                color: "#0f766e",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Editar
+            </a>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -379,7 +627,7 @@ export default function CreatorsPage() {
           style={{
             display: "flex",
             gap: "10px",
-            marginBottom: "20px",
+            marginBottom: "12px",
           }}
         >
           <input
@@ -409,13 +657,56 @@ export default function CreatorsPage() {
           </select>
         </div>
 
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginBottom: "20px",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: "12px", color: "#6b7280", fontWeight: 600 }}>
+            Formato de visualização:
+          </span>
+
+          <button
+            onClick={() => setViewMode("cards")}
+            style={{
+              ...viewButton,
+              ...(viewMode === "cards" ? activeViewButton : {}),
+            }}
+          >
+            Cards
+          </button>
+
+          <button
+            onClick={() => setViewMode("kanban")}
+            style={{
+              ...viewButton,
+              ...(viewMode === "kanban" ? activeViewButton : {}),
+            }}
+          >
+            Kanban
+          </button>
+
+          <button
+            onClick={() => setViewMode("lista")}
+            style={{
+              ...viewButton,
+              ...(viewMode === "lista" ? activeViewButton : {}),
+            }}
+          >
+            Lista
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ color: "#6b7280", fontSize: "14px" }}>Carregando...</div>
         ) : filteredCreators.length === 0 ? (
           <div style={{ color: "#6b7280", fontSize: "14px" }}>
             Nenhum creator encontrado.
           </div>
-        ) : (
+        ) : viewMode === "cards" ? (
           <div
             style={{
               display: "grid",
@@ -423,200 +714,222 @@ export default function CreatorsPage() {
               gap: "16px",
             }}
           >
-            {filteredCreators.map((c) => {
-              const score = getScore(c);
+            {filteredCreators.map((c) => renderCreatorCard(c))}
+          </div>
+        ) : viewMode === "kanban" ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
+              gap: "12px",
+              alignItems: "start",
+              overflowX: "auto",
+            }}
+          >
+            {kanbanColumns.map((column) => {
+              const items = filteredCreators.filter(
+                (creator) => (creator.status || "em_analise") === column.key
+              );
 
               return (
-                <div
-                  key={c.creator_id}
-                  style={{
-                    background: "white",
-                    borderRadius: "10px",
-                    padding: "16px",
-                    border: "1px solid #e5e7eb",
-                    color: "inherit",
-                    display: "block",
-                  }}
-                >
-                  <a
-                    href={`/creators/detail?creator_id=${c.creator_id}`}
-                    style={{
-                      textDecoration: "none",
-                      color: "inherit",
-                      display: "block",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "38px",
-                          height: "38px",
-                          borderRadius: "999px",
-                          background: "#ccfbf1",
-                          color: "#0f766e",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {getInitials(c.nome)}
-                      </div>
-
-                      <div style={{ minWidth: 0 }}>
-                        <h3
-                          style={{
-                            fontSize: "14px",
-                            margin: 0,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {c.nome || "Sem nome"}
-                        </h3>
-                        <p
-                          style={{
-                            fontSize: "12px",
-                            color: "#6b7280",
-                            margin: 0,
-                          }}
-                        >
-                          @{c.instagram || "-"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "8px",
-                        marginBottom: "12px",
-                      }}
-                    >
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Categoria</div>
-                        <div style={metricValue}>{c.categoria_nome || "-"}</div>
-                      </div>
-
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Score Fit</div>
-                        <div style={metricValue}>{formatScore(score)}</div>
-                      </div>
-
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Segmento</div>
-                        <div style={metricValue}>{c.segmento_nome || "-"}</div>
-                      </div>
-
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Área speaker</div>
-                        <div style={metricValue}>{c.area_speaker_nome || "-"}</div>
-                      </div>
-
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Seguidores</div>
-                        <div style={metricValue}>
-                          {c.seguidores !== null && c.seguidores !== undefined
-                            ? c.seguidores.toLocaleString("pt-BR")
-                            : "-"}
-                        </div>
-                      </div>
-
-                      <div style={metricBox}>
-                        <div style={metricLabel}>Engajamento</div>
-                        <div style={metricValue}>
-                          {c.engajamento !== null && c.engajamento !== undefined
-                            ? `${c.engajamento}%`
-                            : "-"}
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-
+                <div key={column.key} style={kanbanColumnStyle(column.key)}>
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      gap: "8px",
+                      marginBottom: "10px",
                     }}
                   >
+                    <div style={kanbanColumnTitleStyle(column.key)}>
+                      {column.label}
+                    </div>
+
                     <div
                       style={{
-                        fontSize: "12px",
-                        display: "inline-block",
-                        padding: "4px 8px",
-                        borderRadius: "6px",
-                        background:
-                          c.status === "aprovado"
-                            ? "#dcfce7"
-                            : c.status === "reprovado"
-                            ? "#fee2e2"
-                            : c.status === "potencial"
-                            ? "#dbeafe"
-                            : "#fef9c3",
-                        color:
-                          c.status === "aprovado"
-                            ? "#166534"
-                            : c.status === "reprovado"
-                            ? "#991b1b"
-                            : c.status === "potencial"
-                            ? "#1d4ed8"
-                            : "#854d0e",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
+                        fontSize: "11px",
+                        color: "#6b7280",
+                        background: "white",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "999px",
+                        padding: "2px 7px",
                       }}
                     >
-                      {formatStatus(c.status)}
+                      {items.length}
                     </div>
+                  </div>
 
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <a
-                        href={`/creators/detail?creator_id=${c.creator_id}`}
-                        style={{
-                          fontSize: "11px",
-                          color: "#0f766e",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                        }}
-                      >
-                        Ver detalhes
-                      </a>
+                  <div style={{ display: "grid", gap: "8px" }}>
+                    {items.length === 0 ? (
+                      <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                        Nenhum creator.
+                      </div>
+                    ) : (
+                      items.map((creator) => {
+                        const score = getScore(creator);
 
-                      <a
-                        href={`/creators/avaliar?creator_id=${c.creator_id}`}
-                        style={{
-                          fontSize: "11px",
-                          color: "#1d4ed8",
-                          fontWeight: 600,
-                          textDecoration: "none",
-                        }}
-                      >
-                        Avaliar
-                      </a>
+                        return (
+                          <div
+                            key={creator.creator_id}
+                            style={{
+                              background: "white",
+                              border: "1px solid #e5e7eb",
+                              borderRadius: "10px",
+                              padding: "10px",
+                            }}
+                          >
+                            <a
+                              href={`/creators/detail?creator_id=${creator.creator_id}`}
+                              style={{
+                                textDecoration: "none",
+                                color: "inherit",
+                              }}
+                            >
+                              <div style={{ fontSize: "13px", fontWeight: 700 }}>
+                                {creator.nome || "Sem nome"}
+                              </div>
 
-                      <a
-                        href={`/creators/edit?creator_id=${c.creator_id}`}
-                        style={{
-                          fontSize: "11px",
-                          color: "#0f766e",
-                          fontWeight: 600,
-                          textDecoration: "none",
-                        }}
-                      >
-                        Editar
-                      </a>
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#6b7280",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                @{creator.instagram || "-"}
+                              </div>
+
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#6b7280",
+                                  marginTop: "8px",
+                                }}
+                              >
+                                {creator.categoria_nome || "-"} /{" "}
+                                {creator.segmento_nome ||
+                                  creator.area_speaker_nome ||
+                                  "-"}
+                              </div>
+
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#111827",
+                                  fontWeight: 700,
+                                  marginTop: "6px",
+                                }}
+                              >
+                                Score Fit: {formatScore(score)}
+                              </div>
+                            </a>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                marginTop: "8px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <a
+                                href={`/creators/detail?creator_id=${creator.creator_id}`}
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#0f766e",
+                                  fontWeight: 700,
+                                  textDecoration: "none",
+                                }}
+                              >
+                                Ver
+                              </a>
+
+                              <a
+                                href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#1d4ed8",
+                                  fontWeight: 600,
+                                  textDecoration: "none",
+                                }}
+                              >
+                                Avaliar
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              background: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "10px",
+              overflow: "hidden",
+            }}
+          >
+            <div style={tableHeader}>
+              <span>CREATOR</span>
+              <span>STATUS</span>
+              <span>SCORE</span>
+              <span>CATEGORIA</span>
+              <span>SEGMENTO</span>
+              <span>AÇÕES</span>
+            </div>
+
+            {filteredCreators.map((creator) => {
+              const score = getScore(creator);
+
+              return (
+                <div key={creator.creator_id} style={tableRow}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "#111827" }}>
+                      {creator.nome || "Sem nome"}
                     </div>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>
+                      @{creator.instagram || "-"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={statusBadgeStyle(creator.status)}>
+                      {formatStatus(creator.status)}
+                    </span>
+                  </div>
+
+                  <div>{formatScore(score)}</div>
+
+                  <div>{creator.categoria_nome || "-"}</div>
+
+                  <div>
+                    {creator.segmento_nome || creator.area_speaker_nome || "-"}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <a
+                      href={`/creators/detail?creator_id=${creator.creator_id}`}
+                      style={tableLinkPrimary}
+                    >
+                      Ver
+                    </a>
+                    <a
+                      href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+                      style={tableLinkBlue}
+                    >
+                      Avaliar
+                    </a>
+                    <a
+                      href={`/creators/edit?creator_id=${creator.creator_id}`}
+                      style={tableLinkPrimary}
+                    >
+                      Editar
+                    </a>
                   </div>
                 </div>
               );
@@ -769,6 +1082,60 @@ const filterStyle = {
   fontSize: "13px",
 };
 
+const viewButton = {
+  borderRadius: "8px",
+  border: "1px solid #e5e7eb",
+  background: "white",
+  color: "#6b7280",
+  padding: "7px 10px",
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const activeViewButton = {
+  background: "#ccfbf1",
+  color: "#0f766e",
+  border: "1px solid #14b8a6",
+};
+
+const tableHeader = {
+  display: "grid",
+  gridTemplateColumns: "1.6fr 0.9fr 0.7fr 1fr 1fr 1fr",
+  gap: "10px",
+  padding: "10px 12px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #e5e7eb",
+  fontSize: "11px",
+  fontWeight: 700,
+  color: "#6b7280",
+};
+
+const tableRow = {
+  display: "grid",
+  gridTemplateColumns: "1.6fr 0.9fr 0.7fr 1fr 1fr 1fr",
+  gap: "10px",
+  padding: "10px 12px",
+  borderBottom: "1px solid #f1f5f9",
+  fontSize: "12px",
+  color: "#374151",
+  alignItems: "center",
+};
+
+const tableLinkPrimary = {
+  fontSize: "11px",
+  color: "#0f766e",
+  fontWeight: 700,
+  textDecoration: "none",
+};
+
+const tableLinkBlue = {
+  fontSize: "11px",
+  color: "#1d4ed8",
+  fontWeight: 700,
+  textDecoration: "none",
+};
+
 const overlayStyle = {
   position: "fixed" as const,
   top: 0,
@@ -814,7 +1181,6 @@ const inputStyle = {
   padding: "10px 12px",
   fontSize: "13px",
   boxSizing: "border-box" as const,
-  background: "white",
 };
 
 const saveButtonStyle = {
