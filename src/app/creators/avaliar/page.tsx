@@ -275,21 +275,21 @@ function AvaliarCreatorContent() {
   }, [pontuacaoBruta, pesoMaximo]);
 
   const statusPrevisto = useMemo(() => {
-    if (!configFunil) return "em_analise";
+  if (!configFunil) return "reprovado";
 
-    if (notaPrevista >= configFunil.min_score_aprovacao) {
-      return "aprovado";
-    }
+  if (notaPrevista >= configFunil.min_score_aprovacao) {
+    return "aprovado";
+  }
 
-    if (
-      configFunil.permitir_potencial &&
-      notaPrevista >= configFunil.min_score_potencial
-    ) {
-      return "potencial";
-    }
+  if (
+    configFunil.permitir_potencial &&
+    notaPrevista >= configFunil.min_score_potencial
+  ) {
+    return "potencial";
+  }
 
-    return "reprovado";
-  }, [notaPrevista, configFunil]);
+  return "reprovado";
+}, [notaPrevista, configFunil]);
 
   const handleSalvar = async () => {
     try {
@@ -320,6 +320,10 @@ function AvaliarCreatorContent() {
         };
       });
 
+      if (!["aprovado", "potencial", "reprovado"].includes(statusPrevisto)) {
+  alert("Status da avaliação inválido.");
+  return;
+}
       setSaving(true);
 
       const { error } = await supabase.rpc("salvar_avaliacao_creator", {

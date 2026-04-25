@@ -123,16 +123,19 @@ function EditCreatorContent() {
             .select("categoria_id, nome")
             .eq("empresa_id", usuario.empresa_id)
             .order("nome", { ascending: true }),
+
           supabase
             .from("segmentos")
             .select("segmento_id, nome, categoria_id")
             .eq("empresa_id", usuario.empresa_id)
             .order("nome", { ascending: true }),
+
           supabase
             .from("areas_speaker")
             .select("area_speaker_id, nome, segmento_id")
             .eq("empresa_id", usuario.empresa_id)
             .order("nome", { ascending: true }),
+
           supabase
             .from("v_creator_detalhe")
             .select(
@@ -176,22 +179,25 @@ function EditCreatorContent() {
       setSegmentoId(creator.segmento_id || "");
       setAreaSpeakerId(creator.area_speaker_id || "");
       setTipoCreator(creator.tipo_creator || "");
+
       setSeguidores(
         creator.seguidores !== null && creator.seguidores !== undefined
           ? String(creator.seguidores)
           : ""
       );
+
       setEngajamento(
         creator.engajamento !== null && creator.engajamento !== undefined
           ? String(creator.engajamento)
           : ""
       );
+
       setCurtidasMedias(
-        creator.curtidas_medias !== null &&
-          creator.curtidas_medias !== undefined
+        creator.curtidas_medias !== null && creator.curtidas_medias !== undefined
           ? String(creator.curtidas_medias)
           : ""
       );
+
       setComentariosMedios(
         creator.comentarios_medios !== null &&
           creator.comentarios_medios !== undefined
@@ -224,6 +230,14 @@ function EditCreatorContent() {
   const handleSegmentoChange = (value: string) => {
     setSegmentoId(value);
     setAreaSpeakerId("");
+  };
+
+  const formatStatus = (value: string | null) => {
+    if (value === "aprovado") return "Aprovado";
+    if (value === "potencial") return "Potencial";
+    if (value === "reprovado") return "Reprovado";
+    if (value === "em_analise") return "Em análise";
+    return "Em análise";
   };
 
   const parseNullableNumber = (value: string) => {
@@ -264,7 +278,7 @@ function EditCreatorContent() {
 
     setSavingCadastro(true);
 
-    const instagramLimpo = instagram.replace("@", "").trim();
+    const instagramLimpo = instagram.replaceAll("@", "").trim();
 
     const { error: creatorError } = await supabase
       .from("creators")
@@ -300,17 +314,15 @@ function EditCreatorContent() {
           throw new Error(error.message);
         }
       } else {
-        const { error } = await supabase
-          .from("creator_captacao")
-          .insert([
-            {
-              creator_id: creatorId,
-              empresa_id: empresaId,
-              segmento_id: segmentoId || null,
-              area_speaker_id: areaSpeakerId || null,
-              atualizado_em: new Date().toISOString(),
-            },
-          ]);
+        const { error } = await supabase.from("creator_captacao").insert([
+          {
+            creator_id: creatorId,
+            empresa_id: empresaId,
+            segmento_id: segmentoId || null,
+            area_speaker_id: areaSpeakerId || null,
+            atualizado_em: new Date().toISOString(),
+          },
+        ]);
 
         if (error) {
           throw new Error(error.message);
@@ -353,18 +365,16 @@ function EditCreatorContent() {
           throw new Error(error.message);
         }
       } else {
-        const { error } = await supabase
-          .from("creator_captacao")
-          .insert([
-            {
-              creator_id: creatorId,
-              empresa_id: empresaId,
-              seguidores: parseNullableNumber(seguidores),
-              curtidas_medias: parseNullableNumber(curtidasMedias),
-              comentarios_medios: parseNullableNumber(comentariosMedios),
-              atualizado_em: new Date().toISOString(),
-            },
-          ]);
+        const { error } = await supabase.from("creator_captacao").insert([
+          {
+            creator_id: creatorId,
+            empresa_id: empresaId,
+            seguidores: parseNullableNumber(seguidores),
+            curtidas_medias: parseNullableNumber(curtidasMedias),
+            comentarios_medios: parseNullableNumber(comentariosMedios),
+            atualizado_em: new Date().toISOString(),
+          },
+        ]);
 
         if (error) {
           throw new Error(error.message);
@@ -391,6 +401,20 @@ function EditCreatorContent() {
   return (
     <AppLayout>
       <div style={{ maxWidth: "760px" }}>
+        <div style={{ marginBottom: "12px" }}>
+          <a
+            href={`/creators/detail?creator_id=${creatorId}`}
+            style={{
+              fontSize: "12px",
+              color: "#6b7280",
+              textDecoration: "none",
+              fontWeight: 600,
+            }}
+          >
+            ← Voltar ao detalhe
+          </a>
+        </div>
+
         <h1 style={{ fontSize: "24px", fontWeight: 700, marginBottom: "16px" }}>
           Editar Creator
         </h1>
@@ -441,7 +465,7 @@ function EditCreatorContent() {
             <div>
               <label style={labelStyle}>Status</label>
               <input
-                value={status || "em_analise"}
+                value={formatStatus(status)}
                 style={{ ...inputStyle, background: "#f8fafc", color: "#6b7280" }}
                 disabled
               />
@@ -472,10 +496,7 @@ function EditCreatorContent() {
               >
                 <option value="">Selecione</option>
                 {categorias.map((categoria) => (
-                  <option
-                    key={categoria.categoria_id}
-                    value={categoria.categoria_id}
-                  >
+                  <option key={categoria.categoria_id} value={categoria.categoria_id}>
                     {categoria.nome}
                   </option>
                 ))}
@@ -508,10 +529,7 @@ function EditCreatorContent() {
               >
                 <option value="">Selecione</option>
                 {areasFiltradas.map((area) => (
-                  <option
-                    key={area.area_speaker_id}
-                    value={area.area_speaker_id}
-                  >
+                  <option key={area.area_speaker_id} value={area.area_speaker_id}>
                     {area.nome}
                   </option>
                 ))}
