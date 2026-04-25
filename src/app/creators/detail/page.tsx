@@ -9,14 +9,19 @@ type UsuarioEmpresa = {
   empresa_id: string;
 };
 
+type ConfiguracaoFunil = {
+  min_score_aprovacao: number | null;
+  min_score_potencial: number | null;
+};
+
 type ScoreFitItem = {
   criterio_id?: string;
   criterio_nome?: string;
   ordem?: number;
-  peso?: number;
+  peso?: number | string;
   tipo_resposta?: string;
   valor?: string | number | null;
-  pontuacao_calculada?: number | null;
+  pontuacao_calculada?: number | string | null;
 };
 
 type CreatorDetalhe = {
@@ -65,6 +70,8 @@ function CreatorDetailContent() {
 
   const [creator, setCreator] = useState<CreatorDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
+  const [minScoreAprovacao, setMinScoreAprovacao] = useState(7);
+  const [minScorePotencial, setMinScorePotencial] = useState(5);
 
   useEffect(() => {
     const loadCreator = async () => {
@@ -93,18 +100,38 @@ function CreatorDetailContent() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("v_creator_detalhe")
-        .select("*")
-        .eq("creator_id", creatorId)
-        .eq("empresa_id", usuario.empresa_id)
-        .single();
+      const [creatorRes, configRes] = await Promise.all([
+        supabase
+          .from("v_creator_detalhe")
+          .select("*")
+          .eq("creator_id", creatorId)
+          .eq("empresa_id", usuario.empresa_id)
+          .single(),
 
-      if (error) {
-        console.error("Erro ao buscar detalhe do creator:", error);
+        supabase
+          .from("configuracoes_funil")
+          .select("min_score_aprovacao, min_score_potencial")
+          .eq("empresa_id", usuario.empresa_id)
+          .maybeSingle<ConfiguracaoFunil>(),
+      ]);
+
+      if (creatorRes.error) {
+        console.error("Erro ao buscar detalhe do creator:", creatorRes.error);
         setCreator(null);
       } else {
-        setCreator(data as CreatorDetalhe);
+        setCreator(creatorRes.data as CreatorDetalhe);
+      }
+
+      if (configRes.error) {
+        console.error("Erro ao buscar configurações do funil:", configRes.error);
+        setMinScoreAprovacao(7);
+        setMinScorePotencial(5);
+      } else if (configRes.data) {
+        setMinScoreAprovacao(Number(configRes.data.min_score_aprovacao ?? 7));
+        setMinScorePotencial(Number(configRes.data.min_score_potencial ?? 5));
+      } else {
+        setMinScoreAprovacao(7);
+        setMinScorePotencial(5);
       }
 
       setLoading(false);
@@ -131,19 +158,33 @@ function CreatorDetailContent() {
     );
   }
 
+  const scoreFinal =
+    creator.score_parcial !== null && creator.score_parcial !== undefined
+      ? Number(creator.score_parcial)
+      : creator.score_total !== null && creator.score_total !== undefined
+      ? Number(creator.score_total)
+      : null;
+
   const scoreFit = (creator.score_fit_detalhes || []).map((item) => {
-    const valorNumerico =
+    const pontos =
       item.pontuacao_calculada !== null && item.pontuacao_calculada !== undefined
         ? Number(item.pontuacao_calculada)
         : item.valor !== null && item.valor !== undefined && item.valor !== ""
         ? Number(item.valor)
         : 0;
 
-    const percent = Math.max(0, Math.min(100, valorNumerico * 50));
+    const peso = Number(item.peso ?? 1);
+    const pesoSeguro = peso > 0 ? peso : 1;
+
+    const percent = Math.max(0, Math.min(100, (pontos / pesoSeguro) * 100));
 
     return {
       label: item.criterio_nome || "Critério",
-      value: percent,
+      percent: Number(percent.toFixed(2)),
+      pontos: Number(pontos.toFixed(2)),
+      peso: pesoSeguro,
+      tipo: item.tipo_resposta || "-",
+      valor: item.valor,
     };
   });
 
@@ -338,9 +379,11 @@ function CreatorDetailContent() {
                   <div style={metricCard}>
                     <div style={metricLabel}>Score Fit</div>
                     <div style={metricValue}>
-                      {creator.score_parcial !== null && creator.score_parcial !== undefined
-                        ? creator.score_parcial
-                        : "-"}
+                      {scoreFinal !== null ? scoreFinal : "-"}
+                    </div>
+                    <div style={metricHint}>
+                      Aprovado ≥ {minScoreAprovacao} | Potencial ≥{" "}
+                      {minScorePotencial}
                     </div>
                   </div>
 
@@ -465,11 +508,18 @@ function CreatorDetailContent() {
                           justifyContent: "space-between",
                           fontSize: "12px",
                           marginBottom: "6px",
+                          gap: "12px",
                         }}
                       >
                         <span style={{ color: "#334155" }}>{item.label}</span>
-                        <span style={{ color: "#0f766e", fontWeight: 600 }}>
-                          {item.value}%
+                        <span
+                          style={{
+                            color: "#0f766e",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.pontos} / {item.peso}
                         </span>
                       </div>
 
@@ -484,12 +534,27 @@ function CreatorDetailContent() {
                       >
                         <div
                           style={{
-                            width: `${item.value}%`,
+                            width: `${item.percent}%`,
                             height: "100%",
                             background: "#0f766e",
                             borderRadius: "999px",
                           }}
                         />
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: "4px",
+                          fontSize: "10px",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        Tipo: {item.tipo} | Resposta:{" "}
+                        {item.valor !== null &&
+                        item.valor !== undefined &&
+                        item.valor !== ""
+                          ? String(item.valor)
+                          : "-"}
                       </div>
                     </div>
                   ))
@@ -588,4 +653,11 @@ const metricValue = {
   fontSize: "20px",
   fontWeight: 700,
   color: "#111827",
+};
+
+const metricHint = {
+  fontSize: "9px",
+  color: "#6b7280",
+  marginTop: "6px",
+  lineHeight: 1.3,
 };
