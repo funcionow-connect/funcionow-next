@@ -11,9 +11,15 @@ type Creator = {
   instagram: string | null;
   status: string | null;
   score_total: number | null;
+  score_parcial: number | null;
   criado_em: string | null;
   foto_url: string | null;
   categoria_id: string | null;
+  categoria_nome: string | null;
+  segmento_nome: string | null;
+  area_speaker_nome: string | null;
+  seguidores: number | null;
+  engajamento: number | null;
 };
 
 type UsuarioEmpresa = {
@@ -59,8 +65,10 @@ export default function CreatorsPage() {
     }
 
     const { data, error } = await supabase
-      .from("creators")
-      .select("*")
+      .from("v_creator_detalhe")
+      .select(
+        "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
+      )
       .eq("empresa_id", usuario.empresa_id)
       .order("criado_em", { ascending: false });
 
@@ -137,14 +145,22 @@ export default function CreatorsPage() {
     return creators.filter((c) => {
       const nome = (c.nome || "").toLowerCase();
       const instagram = (c.instagram || "").toLowerCase();
+      const categoria = (c.categoria_nome || "").toLowerCase();
+      const segmento = (c.segmento_nome || "").toLowerCase();
+      const area = (c.area_speaker_nome || "").toLowerCase();
       const term = search.toLowerCase();
 
       const matchesSearch =
-        !term || nome.includes(term) || instagram.includes(term);
+        !term ||
+        nome.includes(term) ||
+        instagram.includes(term) ||
+        categoria.includes(term) ||
+        segmento.includes(term) ||
+        area.includes(term);
 
       const matchesStatus =
         statusFilter === "Todos os status" ||
-        (c.status || "").toLowerCase() === statusFilter.toLowerCase();
+        (c.status || "em_analise").toLowerCase() === statusFilter.toLowerCase();
 
       return matchesSearch && matchesStatus;
     });
@@ -152,11 +168,51 @@ export default function CreatorsPage() {
 
   const statuses = useMemo(() => {
     const unique = Array.from(
-      new Set(creators.map((c) => c.status).filter(Boolean))
+      new Set(creators.map((c) => c.status || "em_analise").filter(Boolean))
     ) as string[];
 
     return ["Todos os status", ...unique];
   }, [creators]);
+
+  const getScore = (creator: Creator) => {
+    if (creator.score_parcial !== null && creator.score_parcial !== undefined) {
+      return creator.score_parcial;
+    }
+
+    if (creator.score_total !== null && creator.score_total !== undefined) {
+      return creator.score_total;
+    }
+
+    return null;
+  };
+
+  const formatScore = (value: number | null) => {
+    if (value === null || value === undefined) return "-";
+    return Number(value).toLocaleString("pt-BR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatStatus = (status: string | null) => {
+    if (status === "aprovado") return "Aprovado";
+    if (status === "potencial") return "Potencial";
+    if (status === "reprovado") return "Reprovado";
+    if (status === "em_analise") return "Em análise";
+    return "Em análise";
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return "C";
+
+    return name
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  };
 
   return (
     <AppLayout>
@@ -221,7 +277,7 @@ export default function CreatorsPage() {
           }}
         >
           <input
-            placeholder="Buscar creators..."
+            placeholder="Buscar por nome, Instagram, categoria ou segmento..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -241,7 +297,7 @@ export default function CreatorsPage() {
           >
             {statuses.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {status === "Todos os status" ? status : formatStatus(status)}
               </option>
             ))}
           </select>
@@ -257,166 +313,208 @@ export default function CreatorsPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
               gap: "16px",
             }}
           >
-            {filteredCreators.map((c) => (
-              <div
-                key={c.creator_id}
-                style={{
-                  background: "white",
-                  borderRadius: "10px",
-                  padding: "16px",
-                  border: "1px solid #e5e7eb",
-                  color: "inherit",
-                  display: "block",
-                }}
-              >
-                <a
-                  href={`/creators/detail?creator_id=${c.creator_id}`}
+            {filteredCreators.map((c) => {
+              const score = getScore(c);
+
+              return (
+                <div
+                  key={c.creator_id}
                   style={{
-                    textDecoration: "none",
+                    background: "white",
+                    borderRadius: "10px",
+                    padding: "16px",
+                    border: "1px solid #e5e7eb",
                     color: "inherit",
                     display: "block",
                   }}
                 >
-                  <div
+                  <a
+                    href={`/creators/detail?creator_id=${c.creator_id}`}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      marginBottom: "12px",
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "block",
                     }}
                   >
                     <div
                       style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "999px",
-                        background: "#fde68a",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "14px",
+                        gap: "10px",
+                        marginBottom: "12px",
                       }}
                     >
-                      👤
-                    </div>
-
-                    <div>
-                      <h3 style={{ fontSize: "14px", margin: 0 }}>
-                        {c.nome || "Sem nome"}
-                      </h3>
-                      <p
+                      <div
                         style={{
-                          fontSize: "12px",
-                          color: "#6b7280",
-                          margin: 0,
+                          width: "38px",
+                          height: "38px",
+                          borderRadius: "999px",
+                          background: "#ccfbf1",
+                          color: "#0f766e",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "13px",
+                          fontWeight: 700,
                         }}
                       >
-                        @{c.instagram || "-"}
-                      </p>
+                        {getInitials(c.nome)}
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <h3
+                          style={{
+                            fontSize: "14px",
+                            margin: 0,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {c.nome || "Sem nome"}
+                        </h3>
+                        <p
+                          style={{
+                            fontSize: "12px",
+                            color: "#6b7280",
+                            margin: 0,
+                          }}
+                        >
+                          @{c.instagram || "-"}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "8px",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Categoria</div>
+                        <div style={metricValue}>{c.categoria_nome || "-"}</div>
+                      </div>
+
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Score Fit</div>
+                        <div style={metricValue}>{formatScore(score)}</div>
+                      </div>
+
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Segmento</div>
+                        <div style={metricValue}>{c.segmento_nome || "-"}</div>
+                      </div>
+
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Área speaker</div>
+                        <div style={metricValue}>{c.area_speaker_nome || "-"}</div>
+                      </div>
+
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Seguidores</div>
+                        <div style={metricValue}>
+                          {c.seguidores !== null && c.seguidores !== undefined
+                            ? c.seguidores.toLocaleString("pt-BR")
+                            : "-"}
+                        </div>
+                      </div>
+
+                      <div style={metricBox}>
+                        <div style={metricLabel}>Engajamento</div>
+                        <div style={metricValue}>
+                          {c.engajamento !== null && c.engajamento !== undefined
+                            ? `${c.engajamento}%`
+                            : "-"}
+                        </div>
+                      </div>
+                    </div>
+                  </a>
 
                   <div
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                       gap: "8px",
-                      marginBottom: "12px",
                     }}
                   >
-                    <div style={metricBox}>
-                      <div style={metricLabel}>Status</div>
-                      <div style={metricValue}>{c.status || "-"}</div>
-                    </div>
-
-                    <div style={metricBox}>
-                      <div style={metricLabel}>Score Fit</div>
-                      <div style={metricValue}>
-                        {c.score_total !== null ? c.score_total : "-"}
-                      </div>
-                    </div>
-
-                    <div style={metricBox}>
-                      <div style={metricLabel}>Instagram</div>
-                      <div style={metricValue}>@{c.instagram || "-"}</div>
-                    </div>
-
-                    <div style={metricBox}>
-                      <div style={metricLabel}>Criado em</div>
-                      <div style={metricValue}>
-                        {c.criado_em
-                          ? new Date(c.criado_em).toLocaleDateString("pt-BR")
-                          : "-"}
-                      </div>
-                    </div>
-                  </div>
-                </a>
-
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      display: "inline-block",
-                      padding: "4px 8px",
-                      borderRadius: "6px",
-                      background:
-                        c.status === "aprovado"
-                          ? "#dcfce7"
-                          : c.status === "reprovado"
-                          ? "#fee2e2"
-                          : c.status === "potencial"
-                          ? "#dbeafe"
-                          : "#fef9c3",
-                      color:
-                        c.status === "aprovado"
-                          ? "#166534"
-                          : c.status === "reprovado"
-                          ? "#991b1b"
-                          : c.status === "potencial"
-                          ? "#1d4ed8"
-                          : "#854d0e",
-                    }}
-                  >
-                    {c.status || "em_analise"}
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <a
-                      href={`/creators/detail?creator_id=${c.creator_id}`}
+                    <div
                       style={{
-                        fontSize: "11px",
-                        color: "#6b7280",
-                        textDecoration: "none",
-                      }}
-                    >
-                      Ver detalhes
-                    </a>
-
-                    <a
-                      href={`/creators/edit?creator_id=${c.creator_id}`}
-                      style={{
-                        fontSize: "11px",
-                        color: "#0f766e",
+                        fontSize: "12px",
+                        display: "inline-block",
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        background:
+                          c.status === "aprovado"
+                            ? "#dcfce7"
+                            : c.status === "reprovado"
+                            ? "#fee2e2"
+                            : c.status === "potencial"
+                            ? "#dbeafe"
+                            : "#fef9c3",
+                        color:
+                          c.status === "aprovado"
+                            ? "#166534"
+                            : c.status === "reprovado"
+                            ? "#991b1b"
+                            : c.status === "potencial"
+                            ? "#1d4ed8"
+                            : "#854d0e",
                         fontWeight: 600,
-                        textDecoration: "none",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      Editar
-                    </a>
+                      {formatStatus(c.status)}
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <a
+                        href={`/creators/detail?creator_id=${c.creator_id}`}
+                        style={{
+                          fontSize: "11px",
+                          color: "#0f766e",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                        }}
+                      >
+                        Ver detalhes
+                      </a>
+
+                      <a
+                        href={`/creators/avaliar?creator_id=${c.creator_id}`}
+                        style={{
+                          fontSize: "11px",
+                          color: "#1d4ed8",
+                          fontWeight: 600,
+                          textDecoration: "none",
+                        }}
+                      >
+                        Avaliar
+                      </a>
+
+                      <a
+                        href={`/creators/edit?creator_id=${c.creator_id}`}
+                        style={{
+                          fontSize: "11px",
+                          color: "#0f766e",
+                          fontWeight: 600,
+                          textDecoration: "none",
+                        }}
+                      >
+                        Editar
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
