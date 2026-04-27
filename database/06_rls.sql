@@ -1,0 +1,215 @@
+-- =========================================================
+-- Funcionow Connect - Supabase mirror
+-- File: 06_rls.sql
+-- Purpose: current RLS enablement and policies
+-- Generated from current Supabase project state.
+-- =========================================================
+
+alter table public.areas_speaker enable row level security;
+alter table public.categorias enable row level security;
+alter table public.configuracoes_funil enable row level security;
+alter table public.creator_auditoria enable row level security;
+alter table public.creator_avaliacoes enable row level security;
+alter table public.creator_captacao enable row level security;
+alter table public.creators enable row level security;
+alter table public.criterios_avaliacao enable row level security;
+alter table public.empresas enable row level security;
+alter table public.funil_etapas enable row level security;
+alter table public.resultado_criterio enable row level security;
+alter table public.segmentos enable row level security;
+alter table public.usuarios enable row level security;
+
+-- areas_speaker
+drop policy if exists "areas_speaker_insert_empresa" on public.areas_speaker;
+create policy "areas_speaker_insert_empresa" on public.areas_speaker
+for insert to authenticated
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "areas_speaker_select_empresa" on public.areas_speaker;
+create policy "areas_speaker_select_empresa" on public.areas_speaker
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- categorias
+drop policy if exists "Inserir categoria" on public.categorias;
+create policy "Inserir categoria" on public.categorias
+for insert to authenticated
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "Selecionar categoria" on public.categorias;
+create policy "Selecionar categoria" on public.categorias
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- configuracoes_funil
+drop policy if exists "config_funil_insert_empresa" on public.configuracoes_funil;
+create policy "config_funil_insert_empresa" on public.configuracoes_funil
+for insert to public
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "config_funil_select" on public.configuracoes_funil;
+create policy "config_funil_select" on public.configuracoes_funil
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "config_funil_select_empresa" on public.configuracoes_funil;
+create policy "config_funil_select_empresa" on public.configuracoes_funil
+for select to public
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "config_funil_update_empresa" on public.configuracoes_funil;
+create policy "config_funil_update_empresa" on public.configuracoes_funil
+for update to public
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- creator_auditoria
+drop policy if exists "auditoria_select_empresa" on public.creator_auditoria;
+create policy "auditoria_select_empresa" on public.creator_auditoria
+for select to authenticated
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = creator_auditoria.empresa_id));
+
+-- creator_avaliacoes
+drop policy if exists "avaliacoes_insert" on public.creator_avaliacoes;
+create policy "avaliacoes_insert" on public.creator_avaliacoes
+for insert to authenticated
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "avaliacoes_select" on public.creator_avaliacoes;
+create policy "avaliacoes_select" on public.creator_avaliacoes
+for select to authenticated
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = creator_avaliacoes.empresa_id));
+
+drop policy if exists "avaliacoes_update" on public.creator_avaliacoes;
+create policy "avaliacoes_update" on public.creator_avaliacoes
+for update to authenticated
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = creator_avaliacoes.empresa_id))
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+-- creator_captacao
+drop policy if exists "captacao_insert_empresa" on public.creator_captacao;
+create policy "captacao_insert_empresa" on public.creator_captacao
+for insert to authenticated
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "captacao_select_empresa" on public.creator_captacao;
+create policy "captacao_select_empresa" on public.creator_captacao
+for select to authenticated
+using (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "captacao_update_empresa" on public.creator_captacao;
+create policy "captacao_update_empresa" on public.creator_captacao
+for update to authenticated
+using (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()))
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+-- creators
+drop policy if exists "creators_insert" on public.creators;
+create policy "creators_insert" on public.creators
+for insert to authenticated
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "creators_select" on public.creators;
+create policy "creators_select" on public.creators
+for select to authenticated
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = creators.empresa_id));
+
+drop policy if exists "creators_update" on public.creators;
+create policy "creators_update" on public.creators
+for update to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- criterios_avaliacao
+drop policy if exists "criterios_avaliacao_delete_empresa" on public.criterios_avaliacao;
+create policy "criterios_avaliacao_delete_empresa" on public.criterios_avaliacao
+for delete to public
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "criterios_avaliacao_insert_empresa" on public.criterios_avaliacao;
+create policy "criterios_avaliacao_insert_empresa" on public.criterios_avaliacao
+for insert to public
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "criterios_avaliacao_select_empresa" on public.criterios_avaliacao;
+create policy "criterios_avaliacao_select_empresa" on public.criterios_avaliacao
+for select to public
+using ((empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid())) or empresa_id is null);
+
+drop policy if exists "criterios_avaliacao_update_empresa" on public.criterios_avaliacao;
+create policy "criterios_avaliacao_update_empresa" on public.criterios_avaliacao
+for update to public
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "criterios_select" on public.criterios_avaliacao;
+create policy "criterios_select" on public.criterios_avaliacao
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- empresas
+drop policy if exists "Cadastro - inserir empresa" on public.empresas;
+create policy "Cadastro - inserir empresa" on public.empresas
+for insert to public
+with check (auth.uid() is not null);
+
+drop policy if exists "empresas_select" on public.empresas;
+create policy "empresas_select" on public.empresas
+for select to authenticated
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = empresas.empresa_id));
+
+drop policy if exists "empresas_update" on public.empresas;
+create policy "empresas_update" on public.empresas
+for update to public
+using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = empresas.empresa_id))
+with check (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = empresas.empresa_id));
+
+-- funil_etapas
+drop policy if exists "funil_etapas_select" on public.funil_etapas;
+create policy "funil_etapas_select" on public.funil_etapas
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- resultado_criterio
+drop policy if exists "resultado_criterio_insert" on public.resultado_criterio;
+create policy "resultado_criterio_insert" on public.resultado_criterio
+for insert to authenticated
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "resultado_criterio_select" on public.resultado_criterio;
+create policy "resultado_criterio_select" on public.resultado_criterio
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "resultado_criterio_update" on public.resultado_criterio;
+create policy "resultado_criterio_update" on public.resultado_criterio
+for update to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- segmentos
+drop policy if exists "segmentos_insert_empresa" on public.segmentos;
+create policy "segmentos_insert_empresa" on public.segmentos
+for insert to authenticated
+with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+drop policy if exists "segmentos_select_empresa" on public.segmentos;
+create policy "segmentos_select_empresa" on public.segmentos
+for select to authenticated
+using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- usuarios
+drop policy if exists "Permitir inserir próprio usuário" on public.usuarios;
+create policy "Permitir inserir próprio usuário" on public.usuarios
+for insert to authenticated
+with check (usuario_id = auth.uid());
+
+drop policy if exists "Usuario - ler proprio registro" on public.usuarios;
+create policy "Usuario - ler proprio registro" on public.usuarios
+for select to authenticated
+using (usuario_id = auth.uid());
+
+drop policy if exists "usuarios_update_proprio" on public.usuarios;
+create policy "usuarios_update_proprio" on public.usuarios
+for update to authenticated
+using (usuario_id = auth.uid())
+with check (usuario_id = auth.uid());
