@@ -77,8 +77,7 @@ create table if not exists public.creators (
   foto_url text null,
   categoria_id uuid null,
   constraint creators_pkey primary key (creator_id),
-  constraint chk_status_funil check (status = any (array['em_analise'::text, 'potencial'::text, 'aprovado'::text, 'reprovado'::text])),
-  constraint creators_status_check check (status = any (array['em_analise'::text, 'reprovado'::text, 'potencial'::text, 'aprovado'::text]))
+  constraint chk_status_funil check (status = any (array['em_analise'::text, 'potencial'::text, 'aprovado'::text, 'reprovado'::text]))
 );
 
 create table if not exists public.creator_captacao (
