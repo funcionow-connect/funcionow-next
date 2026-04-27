@@ -44,7 +44,7 @@ using (empresa_id in (select usuarios.empresa_id from public.usuarios where usua
 -- configuracoes_funil
 drop policy if exists "config_funil_insert_empresa" on public.configuracoes_funil;
 create policy "config_funil_insert_empresa" on public.configuracoes_funil
-for insert to public
+for insert to authenticated
 with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
 drop policy if exists "config_funil_select" on public.configuracoes_funil;
@@ -54,12 +54,12 @@ using (empresa_id in (select usuarios.empresa_id from public.usuarios where usua
 
 drop policy if exists "config_funil_select_empresa" on public.configuracoes_funil;
 create policy "config_funil_select_empresa" on public.configuracoes_funil
-for select to public
+for select to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
 drop policy if exists "config_funil_update_empresa" on public.configuracoes_funil;
 create policy "config_funil_update_empresa" on public.configuracoes_funil
-for update to public
+for update to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
 with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
@@ -122,22 +122,22 @@ using (empresa_id in (select usuarios.empresa_id from public.usuarios where usua
 -- criterios_avaliacao
 drop policy if exists "criterios_avaliacao_delete_empresa" on public.criterios_avaliacao;
 create policy "criterios_avaliacao_delete_empresa" on public.criterios_avaliacao
-for delete to public
+for delete to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
 drop policy if exists "criterios_avaliacao_insert_empresa" on public.criterios_avaliacao;
 create policy "criterios_avaliacao_insert_empresa" on public.criterios_avaliacao
-for insert to public
+for insert to authenticated
 with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
 drop policy if exists "criterios_avaliacao_select_empresa" on public.criterios_avaliacao;
 create policy "criterios_avaliacao_select_empresa" on public.criterios_avaliacao
-for select to public
+for select to authenticated
 using ((empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid())) or empresa_id is null);
 
 drop policy if exists "criterios_avaliacao_update_empresa" on public.criterios_avaliacao;
 create policy "criterios_avaliacao_update_empresa" on public.criterios_avaliacao
-for update to public
+for update to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
 with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
 
@@ -159,7 +159,7 @@ using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() a
 
 drop policy if exists "empresas_update" on public.empresas;
 create policy "empresas_update" on public.empresas
-for update to public
+for update to authenticated
 using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = empresas.empresa_id))
 with check (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = empresas.empresa_id));
 
