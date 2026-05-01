@@ -75,15 +75,6 @@ alter table public.resultado_criterio
 alter table public.resultado_criterio
   add constraint resultado_criterio_empresa_id_fkey foreign key (empresa_id) references public.empresas(empresa_id);
 
-alter table public.creator_auditoria
-  add constraint creator_auditoria_creator_id_fkey foreign key (creator_id) references public.creators(creator_id) on delete cascade;
-
-alter table public.creator_auditoria
-  add constraint creator_auditoria_empresa_id_fkey foreign key (empresa_id) references public.empresas(empresa_id);
-
-alter table public.creator_auditoria
-  add constraint creator_auditoria_usuario_id_fkey foreign key (usuario_id) references public.usuarios(usuario_id);
-
 -- Indexes
 create index if not exists idx_categorias_empresa on public.categorias using btree (empresa_id);
 create index if not exists idx_segmentos_empresa on public.segmentos using btree (empresa_id);
