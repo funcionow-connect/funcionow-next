@@ -58,6 +58,9 @@ export default function EquipePage() {
   const [openModal, setOpenModal] = useState(false);
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
   const [selectedMembro, setSelectedMembro] = useState<MembroEquipe | null>(null);
+  const [codigoVinculo, setCodigoVinculo] = useState("");
+const [perfilVinculo, setPerfilVinculo] = useState("suporte");
+const [linkingUser, setLinkingUser] = useState(false);
 
   const [nome, setNome] = useState("");
   const [tipoMembro, setTipoMembro] = useState("colaborador");
@@ -231,6 +234,8 @@ export default function EquipePage() {
 
 const handleCloseDetailModal = () => {
   setSelectedMembro(null);
+  setCodigoVinculo("");
+  setPerfilVinculo("suporte");
 };
 
 const handleEditFromDetail = () => {
@@ -239,6 +244,44 @@ const handleEditFromDetail = () => {
   const membroParaEditar = selectedMembro;
   setSelectedMembro(null);
   handleOpenEditModal(membroParaEditar);
+};
+
+const handleVincularUsuario = async () => {
+  if (!selectedMembro) return;
+
+  if (!codigoVinculo.trim()) {
+    alert("Informe o código de vínculo.");
+    return;
+  }
+
+  try {
+    setLinkingUser(true);
+
+    const { error } = await supabase.rpc("vincular_membro_por_codigo", {
+      p_membro_id: selectedMembro.membro_id,
+      p_codigo_vinculo: codigoVinculo.trim(),
+      p_perfil: perfilVinculo,
+    });
+
+    if (error) {
+      console.error("Erro ao vincular usuário:", error);
+      alert(error.message);
+      return;
+    }
+
+    alert("Usuário vinculado com sucesso.");
+
+    setSelectedMembro(null);
+    setCodigoVinculo("");
+    setPerfilVinculo("suporte");
+
+    await loadPage();
+  } catch (err) {
+    console.error("Erro inesperado ao vincular usuário:", err);
+    alert("Erro de conexão ao vincular usuário.");
+  } finally {
+    setLinkingUser(false);
+  }
 };
 
 const getEnderecoCompleto = (membro: MembroEquipe) => {
@@ -741,6 +784,55 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
         {selectedMembro.observacoes || "Nenhuma observação cadastrada."}
       </div>
 
+<div style={sectionTitle}>Acesso ao sistema</div>
+
+{selectedMembro.usuario_id ? (
+  <div style={accessInfoBox}>
+    Este membro já está vinculado a um usuário do sistema.
+  </div>
+) : (
+  <div style={linkAccessBox}>
+    <div style={modalGrid}>
+      <div>
+        <label style={labelStyle}>Código de vínculo</label>
+        <input
+          value={codigoVinculo}
+          onChange={(e) => setCodigoVinculo(e.target.value.toUpperCase())}
+          placeholder="Ex: 57E7DD5F"
+          style={inputStyle}
+        />
+        <div style={helperText}>
+          Código gerado no perfil do usuário cadastrado.
+        </div>
+      </div>
+
+      <div>
+        <label style={labelStyle}>Perfil de acesso</label>
+        <select
+          value={perfilVinculo}
+          onChange={(e) => setPerfilVinculo(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="suporte">Suporte</option>
+          <option value="terceirizado">Terceirizado</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+
+    <div style={{ marginTop: "10px" }}>
+      <button
+        type="button"
+        onClick={handleVincularUsuario}
+        disabled={linkingUser}
+        style={primaryButton}
+      >
+        {linkingUser ? "Vinculando..." : "Vincular usuário"}
+      </button>
+    </div>
+  </div>
+)}
+
       <div style={modalFooter}>
         <button onClick={handleCloseDetailModal} style={secondaryButton}>
           Fechar
@@ -1181,6 +1273,23 @@ const observationBox = {
   color: "#374151",
   minHeight: "44px",
   whiteSpace: "pre-wrap" as const,
+};
+
+const linkAccessBox = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  padding: "12px",
+};
+
+const accessInfoBox = {
+  background: "#ecfdf5",
+  border: "1px solid #bbf7d0",
+  color: "#166534",
+  borderRadius: "10px",
+  padding: "10px 12px",
+  fontSize: "12px",
+  fontWeight: 600,
 };
 
 const avatarBox = {
