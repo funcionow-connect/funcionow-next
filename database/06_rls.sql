@@ -17,6 +17,7 @@ alter table public.funil_etapas enable row level security;
 alter table public.resultado_criterio enable row level security;
 alter table public.segmentos enable row level security;
 alter table public.usuarios enable row level security;
+alter table public.membros_equipe enable row level security;
 
 -- areas_speaker
 drop policy if exists "areas_speaker_insert_empresa" on public.areas_speaker;
@@ -161,6 +162,28 @@ drop policy if exists "funil_etapas_select" on public.funil_etapas;
 create policy "funil_etapas_select" on public.funil_etapas
 for select to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
+
+-- membros_equipe
+drop policy if exists "membros_equipe_select_empresa" on public.membros_equipe;
+create policy "membros_equipe_select_empresa" on public.membros_equipe
+for select to authenticated
+using (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "membros_equipe_insert_empresa" on public.membros_equipe;
+create policy "membros_equipe_insert_empresa" on public.membros_equipe
+for insert to authenticated
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "membros_equipe_update_empresa" on public.membros_equipe;
+create policy "membros_equipe_update_empresa" on public.membros_equipe
+for update to authenticated
+using (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()))
+with check (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
+
+drop policy if exists "membros_equipe_delete_empresa" on public.membros_equipe;
+create policy "membros_equipe_delete_empresa" on public.membros_equipe
+for delete to authenticated
+using (empresa_id in (select u.empresa_id from public.usuarios u where u.usuario_id = auth.uid()));
 
 -- resultado_criterio
 drop policy if exists "resultado_criterio_insert" on public.resultado_criterio;
