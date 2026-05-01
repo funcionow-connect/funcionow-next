@@ -16,3 +16,9 @@ create trigger trg_tipo_creator
 before insert or update on public.creator_captacao
 for each row
 execute function public.fn_calcular_tipo_creator();
+
+drop trigger if exists trg_membros_equipe_set_atualizado_em on public.membros_equipe;
+create trigger trg_membros_equipe_set_atualizado_em
+before update on public.membros_equipe
+for each row
+execute function public.set_atualizado_em();
