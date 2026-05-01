@@ -144,17 +144,3 @@ create table if not exists public.resultado_criterio (
   empresa_id uuid not null,
   constraint resultado_criterio_pkey primary key (resultado_id)
 );
-
-create table if not exists public.creator_auditoria (
-  auditoria_id uuid not null default gen_random_uuid(),
-  creator_id uuid not null,
-  etapa integer not null,
-  decisao text not null,
-  justificativa text null,
-  usuario_id uuid not null,
-  usuario_nome text null,
-  empresa_id uuid not null,
-  criado_em timestamp with time zone null default now(),
-  constraint creator_auditoria_pkey primary key (auditoria_id),
-  constraint creator_auditoria_decisao_check check (decisao = any (array['aprovado'::text, 'potencial'::text, 'reprovado'::text]))
-);
