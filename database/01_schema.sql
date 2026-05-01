@@ -100,14 +100,12 @@ create table if not exists public.criterios_avaliacao (
   empresa_id uuid null,
   etapa_id uuid null,
   nome text not null,
-  tipo text null,
   peso numeric not null default 1,
   obrigatorio boolean not null default false,
   tipo_resposta text not null,
   ordem integer null,
   categoria_criterios text null,
-  constraint criterios_avaliacao_pkey primary key (criterio_id),
-  constraint criterios_avaliacao_tipo_check check (tipo = any (array['texto'::text, 'numero'::text, 'booleano'::text]))
+  constraint criterios_avaliacao_pkey primary key (criterio_id)
 );
 
 create table if not exists public.configuracoes_funil (
