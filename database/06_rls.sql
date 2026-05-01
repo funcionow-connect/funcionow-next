@@ -8,7 +8,6 @@
 alter table public.areas_speaker enable row level security;
 alter table public.categorias enable row level security;
 alter table public.configuracoes_funil enable row level security;
-alter table public.creator_auditoria enable row level security;
 alter table public.creator_avaliacoes enable row level security;
 alter table public.creator_captacao enable row level security;
 alter table public.creators enable row level security;
@@ -62,12 +61,6 @@ create policy "config_funil_update_empresa" on public.configuracoes_funil
 for update to authenticated
 using (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()))
 with check (empresa_id in (select usuarios.empresa_id from public.usuarios where usuarios.usuario_id = auth.uid()));
-
--- creator_auditoria
-drop policy if exists "auditoria_select_empresa" on public.creator_auditoria;
-create policy "auditoria_select_empresa" on public.creator_auditoria
-for select to authenticated
-using (exists (select 1 from public.usuarios u where u.usuario_id = auth.uid() and u.empresa_id = creator_auditoria.empresa_id));
 
 -- creator_avaliacoes
 drop policy if exists "avaliacoes_insert" on public.creator_avaliacoes;
