@@ -24,7 +24,7 @@ create table if not exists public.usuarios (
   criado_em timestamp with time zone null default now(),
   constraint usuarios_pkey primary key (usuario_id),
   constraint usuarios_email_key unique (email),
-  constraint usuarios_perfil_check check (perfil = any (array['admin'::text, 'suporte'::text]))
+  constraint usuarios_perfil_check check (perfil = any (array['admin'::text, 'suporte'::text, 'terceirizado'::text]))
 );
 
 create table if not exists public.categorias (
@@ -141,4 +141,37 @@ create table if not exists public.resultado_criterio (
   pontuacao_calculada numeric null,
   empresa_id uuid not null,
   constraint resultado_criterio_pkey primary key (resultado_id)
+);
+
+create table if not exists public.membros_equipe (
+  membro_id uuid not null default gen_random_uuid(),
+  empresa_id uuid not null,
+  usuario_id uuid null,
+  nome text not null,
+  tipo_membro text not null default 'colaborador'::text,
+  cargo text null,
+  status text not null default 'ativo'::text,
+  email text null,
+  telefone text null,
+  whatsapp text null,
+  tipo_documento text null,
+  documento text null,
+  razao_social text null,
+  cep text null,
+  endereco text null,
+  numero text null,
+  complemento text null,
+  bairro text null,
+  cidade text null,
+  estado text null,
+  chave_pix text null,
+  tipo_chave_pix text null,
+  banco text null,
+  observacoes text null,
+  criado_em timestamp with time zone not null default now(),
+  atualizado_em timestamp with time zone not null default now(),
+  constraint membros_equipe_pkey primary key (membro_id),
+  constraint membros_equipe_tipo_membro_check check (tipo_membro = any (array['colaborador'::text, 'terceirizado'::text, 'parceiro'::text])),
+  constraint membros_equipe_status_check check (status = any (array['ativo'::text, 'inativo'::text])),
+  constraint membros_equipe_tipo_documento_check check ((tipo_documento is null) or (tipo_documento = any (array['cpf'::text, 'cnpj'::text])))
 );
