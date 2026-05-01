@@ -75,6 +75,12 @@ alter table public.resultado_criterio
 alter table public.resultado_criterio
   add constraint resultado_criterio_empresa_id_fkey foreign key (empresa_id) references public.empresas(empresa_id);
 
+alter table public.membros_equipe
+  add constraint membros_equipe_empresa_id_fkey foreign key (empresa_id) references public.empresas(empresa_id) on delete cascade;
+
+alter table public.membros_equipe
+  add constraint membros_equipe_usuario_id_fkey foreign key (usuario_id) references public.usuarios(usuario_id) on delete set null;
+
 -- Indexes
 create index if not exists idx_categorias_empresa on public.categorias using btree (empresa_id);
 create index if not exists idx_segmentos_empresa on public.segmentos using btree (empresa_id);
@@ -95,3 +101,8 @@ create index if not exists idx_creator_avaliacoes_creator_avaliado on public.cre
 create index if not exists idx_resultado_avaliacao on public.resultado_criterio using btree (avaliacao_id);
 create index if not exists idx_resultado_criterio_empresa on public.resultado_criterio using btree (empresa_id);
 create unique index if not exists idx_unique_resultado on public.resultado_criterio using btree (avaliacao_id, criterio_id);
+create index if not exists idx_membros_equipe_empresa on public.membros_equipe using btree (empresa_id);
+create index if not exists idx_membros_equipe_usuario on public.membros_equipe using btree (usuario_id);
+create index if not exists idx_membros_equipe_status on public.membros_equipe using btree (status);
+create index if not exists idx_membros_equipe_tipo on public.membros_equipe using btree (tipo_membro);
+create unique index if not exists idx_membros_equipe_empresa_documento_unique on public.membros_equipe using btree (empresa_id, documento) where documento is not null and documento <> '';
