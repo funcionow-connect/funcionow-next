@@ -106,3 +106,33 @@ create index if not exists idx_membros_equipe_usuario on public.membros_equipe u
 create index if not exists idx_membros_equipe_status on public.membros_equipe using btree (status);
 create index if not exists idx_membros_equipe_tipo on public.membros_equipe using btree (tipo_membro);
 create unique index if not exists idx_membros_equipe_empresa_documento_unique on public.membros_equipe using btree (empresa_id, documento) where documento is not null and documento <> '';
+
+-- =========================================================
+-- Ajuste perfil de usuários
+-- Permite admin, suporte e terceirizado
+-- =========================================================
+
+alter table public.usuarios
+drop constraint if exists usuarios_perfil_check;
+
+alter table public.usuarios
+add constraint usuarios_perfil_check
+check (
+  perfil = any (
+    array[
+      'admin'::text,
+      'suporte'::text,
+      'terceirizado'::text
+    ]
+  )
+);
+
+-- =========================================================
+-- Índices: perfis_usuario
+-- =========================================================
+
+create index if not exists idx_perfis_usuario_codigo_vinculo
+on public.perfis_usuario using btree (codigo_vinculo);
+
+create index if not exists idx_perfis_usuario_email
+on public.perfis_usuario using btree (email);

@@ -175,3 +175,52 @@ create table if not exists public.membros_equipe (
   constraint membros_equipe_status_check check (status = any (array['ativo'::text, 'inativo'::text])),
   constraint membros_equipe_tipo_documento_check check ((tipo_documento is null) or (tipo_documento = any (array['cpf'::text, 'cnpj'::text])))
 );
+
+-- =========================================================
+-- Tabela: perfis_usuario
+-- Perfil pessoal do usuário, independente da empresa
+-- =========================================================
+
+create table if not exists public.perfis_usuario (
+  usuario_id uuid not null,
+  nome text not null,
+  email text not null,
+  telefone text null,
+  whatsapp text null,
+
+  tipo_documento text null,
+  documento text null,
+
+  cep text null,
+  endereco text null,
+  numero text null,
+  complemento text null,
+  bairro text null,
+  cidade text null,
+  estado text null,
+
+  codigo_vinculo text not null,
+  criado_em timestamp with time zone not null default now(),
+  atualizado_em timestamp with time zone not null default now(),
+
+  constraint perfis_usuario_pkey primary key (usuario_id),
+
+  constraint perfis_usuario_usuario_id_fkey
+    foreign key (usuario_id)
+    references auth.users (id)
+    on delete cascade,
+
+  constraint perfis_usuario_email_key unique (email),
+  constraint perfis_usuario_codigo_vinculo_key unique (codigo_vinculo),
+
+  constraint perfis_usuario_tipo_documento_check
+    check (
+      tipo_documento is null
+      or tipo_documento = any (
+        array[
+          'cpf'::text,
+          'cnpj'::text
+        ]
+      )
+    )
+);

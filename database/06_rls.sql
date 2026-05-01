@@ -229,3 +229,38 @@ create policy "usuarios_update_proprio" on public.usuarios
 for update to authenticated
 using (usuario_id = auth.uid())
 with check (usuario_id = auth.uid());
+
+-- =========================================================
+-- RLS: perfis_usuario
+-- Usuário só lê/edita o próprio perfil
+-- =========================================================
+
+alter table public.perfis_usuario enable row level security;
+
+drop policy if exists "perfis_usuario_select_proprio"
+on public.perfis_usuario;
+
+create policy "perfis_usuario_select_proprio"
+on public.perfis_usuario
+for select
+to authenticated
+using (usuario_id = auth.uid());
+
+drop policy if exists "perfis_usuario_update_proprio"
+on public.perfis_usuario;
+
+create policy "perfis_usuario_update_proprio"
+on public.perfis_usuario
+for update
+to authenticated
+using (usuario_id = auth.uid())
+with check (usuario_id = auth.uid());
+
+drop policy if exists "perfis_usuario_insert_proprio"
+on public.perfis_usuario;
+
+create policy "perfis_usuario_insert_proprio"
+on public.perfis_usuario
+for insert
+to authenticated
+with check (usuario_id = auth.uid());

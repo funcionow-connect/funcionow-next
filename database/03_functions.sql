@@ -28,6 +28,13 @@ begin
 end;
 $function$;
 
+-- =========================================================
+-- Função: handle_new_user
+-- Cria perfil pessoal para todo usuário.
+-- Se tipo_cadastro = 'usuario', não cria empresa.
+-- Caso contrário, mantém fluxo antigo: empresa + usuário admin.
+-- =========================================================
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -38,15 +45,47 @@ declare
   nova_empresa_id uuid;
   nome_empresa text;
   nome_usuario text;
+  tipo_cadastro text;
+  codigo_gerado text;
 begin
+  tipo_cadastro := coalesce(new.raw_user_meta_data->>'tipo_cadastro', 'empresa');
   nome_empresa := coalesce(new.raw_user_meta_data->>'empresa_nome', 'Empresa de ' || new.email);
   nome_usuario := coalesce(new.raw_user_meta_data->>'nome', 'Admin');
+
+  codigo_gerado := public.gerar_codigo_vinculo_usuario();
+
+  insert into public.perfis_usuario (
+    usuario_id,
+    nome,
+    email,
+    codigo_vinculo
+  )
+  values (
+    new.id,
+    nome_usuario,
+    new.email,
+    codigo_gerado
+  )
+  on conflict (usuario_id)
+  do update set
+    nome = excluded.nome,
+    email = excluded.email;
+
+  if tipo_cadastro = 'usuario' then
+    return new;
+  end if;
 
   insert into public.empresas (nome)
   values (nome_empresa)
   returning empresa_id into nova_empresa_id;
 
-  insert into public.usuarios (usuario_id, empresa_id, nome, email, perfil)
+  insert into public.usuarios (
+    usuario_id,
+    empresa_id,
+    nome,
+    email,
+    perfil
+  )
   values (
     new.id,
     nova_empresa_id,
@@ -224,3 +263,176 @@ begin
   return new;
 end;
 $function$;
+
+-- =========================================================
+-- Função: gerar_codigo_vinculo_usuario
+-- Gera código único de vínculo para usuário
+-- =========================================================
+
+create or replace function public.gerar_codigo_vinculo_usuario()
+returns text
+language plpgsql
+as $function$
+declare
+  v_codigo text;
+  v_existe boolean;
+begin
+  loop
+    v_codigo := upper(
+      substring(md5(random()::text || clock_timestamp()::text), 1, 8)
+    );
+
+    select exists (
+      select 1
+      from public.perfis_usuario pu
+      where pu.codigo_vinculo = v_codigo
+    )
+    into v_existe;
+
+    exit when not v_existe;
+  end loop;
+
+  return v_codigo;
+end;
+$function$;
+
+-- =========================================================
+-- Função: buscar_perfil_por_codigo_vinculo
+-- Busca perfil pelo código de vínculo
+-- =========================================================
+
+create or replace function public.buscar_perfil_por_codigo_vinculo(p_codigo text)
+returns table (
+  usuario_id uuid,
+  nome text,
+  email text,
+  telefone text,
+  whatsapp text,
+  tipo_documento text,
+  documento text,
+  cidade text,
+  estado text,
+  codigo_vinculo text
+)
+language sql
+security definer
+set search_path = public
+as $function$
+  select
+    pu.usuario_id,
+    pu.nome,
+    pu.email,
+    pu.telefone,
+    pu.whatsapp,
+    pu.tipo_documento,
+    pu.documento,
+    pu.cidade,
+    pu.estado,
+    pu.codigo_vinculo
+  from public.perfis_usuario pu
+  where pu.codigo_vinculo = upper(trim(p_codigo))
+  limit 1;
+$function$;
+
+grant execute on function public.buscar_perfil_por_codigo_vinculo(text) to authenticated;
+
+-- =========================================================
+-- Função: vincular_membro_por_codigo
+-- Vincula membro da equipe a um usuário por código
+-- =========================================================
+
+drop function if exists public.vincular_membro_por_codigo(uuid, text, text);
+
+create or replace function public.vincular_membro_por_codigo(
+  p_membro_id uuid,
+  p_codigo_vinculo text,
+  p_perfil text default 'suporte'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $function$
+declare
+  v_empresa_id uuid;
+  v_admin_empresa_id uuid;
+  v_usuario_id uuid;
+  v_nome text;
+  v_email text;
+begin
+  if p_perfil not in ('admin', 'suporte', 'terceirizado') then
+    raise exception 'Perfil inválido. Use admin, suporte ou terceirizado.';
+  end if;
+
+  select u.empresa_id
+  into v_admin_empresa_id
+  from public.usuarios as u
+  where u.usuario_id = auth.uid()
+  limit 1;
+
+  if v_admin_empresa_id is null then
+    raise exception 'Usuário logado não possui empresa vinculada.';
+  end if;
+
+  select me.empresa_id
+  into v_empresa_id
+  from public.membros_equipe as me
+  where me.membro_id = p_membro_id
+    and me.empresa_id = v_admin_empresa_id
+  limit 1;
+
+  if v_empresa_id is null then
+    raise exception 'Membro não encontrado para esta empresa.';
+  end if;
+
+  select
+    pu.usuario_id,
+    pu.nome,
+    pu.email
+  into
+    v_usuario_id,
+    v_nome,
+    v_email
+  from public.perfis_usuario as pu
+  where pu.codigo_vinculo = upper(trim(p_codigo_vinculo))
+  limit 1;
+
+  if v_usuario_id is null then
+    raise exception 'Código de vínculo não encontrado.';
+  end if;
+
+  insert into public.usuarios (
+    usuario_id,
+    empresa_id,
+    nome,
+    email,
+    perfil,
+    status
+  )
+  values (
+    v_usuario_id,
+    v_empresa_id,
+    v_nome,
+    v_email,
+    p_perfil,
+    'ativo'
+  )
+  on conflict on constraint usuarios_pkey
+  do update set
+    empresa_id = excluded.empresa_id,
+    nome = excluded.nome,
+    email = excluded.email,
+    perfil = excluded.perfil,
+    status = 'ativo';
+
+  update public.membros_equipe as me
+  set
+    usuario_id = v_usuario_id,
+    email = coalesce(me.email, v_email),
+    status = 'ativo'
+  where me.membro_id = p_membro_id
+    and me.empresa_id = v_empresa_id;
+end;
+$function$;
+
+grant execute on function public.vincular_membro_por_codigo(uuid, text, text) to authenticated;
