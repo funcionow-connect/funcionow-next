@@ -6,8 +6,55 @@ import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioVinculo = {
   empresa_id: string;
-  perfil: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
 };
+
+type PerfilAcesso = {
+  nome: string;
+  slug: string;
+  is_admin: boolean;
+};
+
+type PaginaSistema = {
+  pagina_key: string;
+  nome: string;
+  rota: string;
+  ordem: number;
+  ativo: boolean;
+};
+
+type PermissaoPagina = {
+  pagina_key: string;
+  pode_acessar: boolean;
+  paginas_sistema: PaginaSistema | PaginaSistema[] | null;
+};
+
+type MenuItem = {
+  label: string;
+  href: string;
+  match: string;
+  ordem: number;
+};
+
+const fallbackMenuItems: MenuItem[] = [
+  { label: "Dashboard", href: "/dashboard", match: "/dashboard", ordem: 1 },
+  { label: "Creators", href: "/creators", match: "/creators", ordem: 2 },
+  { label: "Avaliações", href: "/avaliacoes", match: "/avaliacoes", ordem: 3 },
+  { label: "Campanhas", href: "/campanhas", match: "/campanhas", ordem: 4 },
+  { label: "Academy", href: "/academy", match: "/academy", ordem: 5 },
+  { label: "Rewards", href: "/rewards", match: "/rewards", ordem: 6 },
+  { label: "Community", href: "/community", match: "/community", ordem: 7 },
+  { label: "IA Insights", href: "/insights", match: "/insights", ordem: 8 },
+  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 9 },
+  {
+    label: "Configurações",
+    href: "/configuracoes",
+    match: "/configuracoes",
+    ordem: 10,
+  },
+  { label: "Meu Perfil", href: "/perfil", match: "/perfil", ordem: 99 },
+];
 
 export default function AppLayout({
   children,
@@ -18,11 +65,15 @@ export default function AppLayout({
 
   const [loading, setLoading] = useState(true);
   const [temEmpresa, setTemEmpresa] = useState(false);
+  const [perfilAcessoNome, setPerfilAcessoNome] = useState("");
   const [initials, setInitials] = useState("U");
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
   useEffect(() => {
     const checkAccess = async () => {
       try {
+        setLoading(true);
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -34,30 +85,119 @@ export default function AppLayout({
 
         const { data: usuario, error } = await supabase
           .from("usuarios")
-          .select("empresa_id, perfil")
+          .select("empresa_id, perfil, perfil_acesso_id")
           .eq("usuario_id", session.user.id)
           .maybeSingle<UsuarioVinculo>();
 
-        if (error) {
-          console.error("Erro ao verificar vínculo:", error);
-          setTemEmpresa(false);
-        } else {
-          setTemEmpresa(Boolean(usuario?.empresa_id));
-        }
-
-        const { data: perfil } = await supabase
+        const { data: perfilUsuario } = await supabase
           .from("perfis_usuario")
           .select("nome")
           .eq("usuario_id", session.user.id)
           .maybeSingle<{ nome: string }>();
 
-        setInitials(getInitials(perfil?.nome || session.user.email || "U"));
+        setInitials(
+          getInitials(perfilUsuario?.nome || session.user.email || "U"),
+        );
 
         const rotaLivreParaSemEmpresa =
           pathname === "/perfil" || pathname.startsWith("/perfil/");
 
-        if (!usuario?.empresa_id && !rotaLivreParaSemEmpresa) {
-          window.location.href = "/perfil";
+        if (error) {
+          console.error("Erro ao verificar vínculo:", error);
+          setTemEmpresa(false);
+          setMenuItems([]);
+
+          if (!rotaLivreParaSemEmpresa) {
+            window.location.href = "/perfil";
+            return;
+          }
+
+          return;
+        }
+
+        if (!usuario?.empresa_id) {
+          setTemEmpresa(false);
+          setMenuItems([]);
+          setPerfilAcessoNome("");
+
+          if (!rotaLivreParaSemEmpresa) {
+            window.location.href = "/perfil";
+            return;
+          }
+
+          return;
+        }
+
+        setTemEmpresa(true);
+
+        let itensPermitidos: MenuItem[] = [];
+        let nomePerfil = "";
+
+        if (usuario.perfil_acesso_id) {
+          const { data: perfilAcesso, error: perfilError } = await supabase
+            .from("perfis_acesso")
+            .select("nome, slug, is_admin")
+            .eq("perfil_acesso_id", usuario.perfil_acesso_id)
+            .maybeSingle<PerfilAcesso>();
+
+          if (perfilError) {
+            console.error("Erro ao buscar perfil de acesso:", perfilError);
+          }
+
+          nomePerfil = perfilAcesso?.nome || "";
+
+          const { data: permissoes, error: permissoesError } = await supabase
+            .from("perfil_acesso_permissoes")
+            .select(
+              "pagina_key, pode_acessar, paginas_sistema(pagina_key, nome, rota, ordem, ativo)",
+            )
+            .eq("perfil_acesso_id", usuario.perfil_acesso_id)
+            .eq("pode_acessar", true);
+
+          if (permissoesError) {
+            console.error("Erro ao buscar permissões:", permissoesError);
+          } else {
+            itensPermitidos = ((permissoes || []) as PermissaoPagina[])
+              .map((permissao) => {
+                const pagina = Array.isArray(permissao.paginas_sistema)
+                  ? permissao.paginas_sistema[0]
+                  : permissao.paginas_sistema;
+
+                if (!pagina || !pagina.ativo) return null;
+
+                return {
+                  label: pagina.nome,
+                  href: pagina.rota,
+                  match: pagina.rota,
+                  ordem: pagina.ordem,
+                };
+              })
+              .filter(Boolean) as MenuItem[];
+
+            itensPermitidos.sort((a, b) => a.ordem - b.ordem);
+          }
+        }
+
+        // Fallback temporário para usuários antigos ou recém-criados sem perfil_acesso_id
+        if (itensPermitidos.length === 0) {
+          itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
+          nomePerfil = formatPerfilAntigo(usuario.perfil);
+        }
+
+        setMenuItems(itensPermitidos);
+        setPerfilAcessoNome(nomePerfil);
+
+        const rotaPermitida = itensPermitidos.some((item) => {
+          return pathname === item.href || pathname.startsWith(`${item.match}/`);
+        });
+
+        if (!rotaPermitida) {
+          const rotaDestino =
+            itensPermitidos.find((item) => item.href === "/dashboard")?.href ||
+            itensPermitidos.find((item) => item.href === "/perfil")?.href ||
+            "/perfil";
+
+          window.location.href = rotaDestino;
           return;
         }
       } catch (err) {
@@ -134,124 +274,24 @@ export default function AppLayout({
           <nav style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {temEmpresa ? (
               <>
-                <a
-                  href="/dashboard"
-                  style={
-                    pathname === "/dashboard" ? navItemActiveStyle : navItemStyle
-                  }
-                >
-                  Dashboard
-                </a>
+                {menuItems.map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    style={
+                      pathname === item.href ||
+                      pathname.startsWith(`${item.match}/`)
+                        ? navItemActiveStyle
+                        : navItemStyle
+                    }
+                  >
+                    {item.label}
+                  </a>
+                ))}
 
-                <a
-                  href="/creators"
-                  style={
-                    pathname.startsWith("/creators")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Creators
-                </a>
-
-                <a
-                  href="/avaliacoes"
-                  style={
-                    pathname.startsWith("/avaliacoes")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Avaliações
-                </a>
-
-                <a
-                  href="/campanhas"
-                  style={
-                    pathname.startsWith("/campanhas")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Campanhas
-                </a>
-
-                <a
-                  href="/academy"
-                  style={
-                    pathname.startsWith("/academy")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Academy
-                </a>
-
-                <a
-                  href="/rewards"
-                  style={
-                    pathname.startsWith("/rewards")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Rewards
-                </a>
-
-                <a
-                  href="/community"
-                  style={
-                    pathname.startsWith("/community")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Community
-                </a>
-
-                <a
-                  href="/insights"
-                  style={
-                    pathname.startsWith("/insights")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  IA Insights
-                </a>
-
-                <a
-                  href="/equipe"
-                  style={
-                    pathname.startsWith("/equipe")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Equipe
-                </a>
-
-                <a
-                  href="/configuracoes"
-                  style={
-                    pathname.startsWith("/configuracoes")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Configurações
-                </a>
-
-                <a
-                  href="/perfil"
-                  style={
-                    pathname.startsWith("/perfil")
-                      ? navItemActiveStyle
-                      : navItemStyle
-                  }
-                >
-                  Meu Perfil
-                </a>
+                <div style={profileInfoBox}>
+                  Acesso: {perfilAcessoNome || "Não definido"}
+                </div>
               </>
             ) : (
               <>
@@ -328,6 +368,35 @@ const getInitials = (name: string) => {
     .toUpperCase();
 };
 
+const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
+  if (perfil === "admin") {
+    return fallbackMenuItems;
+  }
+
+  if (perfil === "suporte") {
+    return fallbackMenuItems.filter((item) =>
+      ["/dashboard", "/creators", "/avaliacoes", "/campanhas", "/perfil"].includes(
+        item.href,
+      ),
+    );
+  }
+
+  if (perfil === "terceirizado") {
+    return fallbackMenuItems.filter((item) =>
+      ["/dashboard", "/creators", "/avaliacoes", "/perfil"].includes(item.href),
+    );
+  }
+
+  return fallbackMenuItems.filter((item) => item.href === "/perfil");
+};
+
+const formatPerfilAntigo = (perfil: string | null) => {
+  if (perfil === "admin") return "Admin";
+  if (perfil === "suporte") return "Operacional";
+  if (perfil === "terceirizado") return "Externo";
+  return "Não definido";
+};
+
 const navItemStyle = {
   padding: "10px 12px",
   borderRadius: "8px",
@@ -363,6 +432,16 @@ const logoutButton = {
 };
 
 const infoBox = {
+  marginTop: "12px",
+  padding: "10px 12px",
+  borderRadius: "8px",
+  background: "#1e293b",
+  color: "#cbd5e1",
+  fontSize: "11px",
+  lineHeight: 1.4,
+};
+
+const profileInfoBox = {
   marginTop: "12px",
   padding: "10px 12px",
   borderRadius: "8px",

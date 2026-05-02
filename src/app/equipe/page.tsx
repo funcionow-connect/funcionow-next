@@ -57,6 +57,14 @@ type PerfilVinculoBusca = {
   codigo_vinculo: string;
 };
 
+type PerfilAcessoOption = {
+  perfil_acesso_id: string;
+  nome: string;
+  slug: string;
+  is_admin: boolean;
+  ativo: boolean;
+};
+
 export default function EquipePage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [membros, setMembros] = useState<MembroEquipe[]>([]);
@@ -70,12 +78,16 @@ export default function EquipePage() {
 
   const [openModal, setOpenModal] = useState(false);
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
-  const [selectedMembro, setSelectedMembro] = useState<MembroEquipe | null>(
-    null,
-  );
+  const [selectedMembro, setSelectedMembro] = useState<MembroEquipe | null>(null);
+
   const [codigoVinculo, setCodigoVinculo] = useState("");
-  const [perfilVinculo, setPerfilVinculo] = useState("suporte");
+  const [perfilVinculoId, setPerfilVinculoId] = useState("");
   const [linkingUser, setLinkingUser] = useState(false);
+
+  const [perfisAcesso, setPerfisAcesso] = useState<PerfilAcessoOption[]>([]);
+  const [perfilAcessoAtualId, setPerfilAcessoAtualId] = useState("");
+  const [perfilAcessoEditId, setPerfilAcessoEditId] = useState("");
+  const [savingPerfilAcesso, setSavingPerfilAcesso] = useState(false);
 
   const [openVincularModal, setOpenVincularModal] = useState(false);
   const [codigoNovoVinculo, setCodigoNovoVinculo] = useState("");
@@ -85,7 +97,7 @@ export default function EquipePage() {
   const [criandoVinculo, setCriandoVinculo] = useState(false);
 
   const [novoTipoMembro, setNovoTipoMembro] = useState("colaborador");
-  const [novoPerfilAcesso, setNovoPerfilAcesso] = useState("suporte");
+  const [novoPerfilAcessoId, setNovoPerfilAcessoId] = useState("");
   const [novoCargo, setNovoCargo] = useState("");
   const [novaChavePix, setNovaChavePix] = useState("");
   const [novaObservacao, setNovaObservacao] = useState("");
@@ -167,6 +179,38 @@ export default function EquipePage() {
     return formatDocumento(value, tipo || "");
   };
 
+  const getPerfilPadraoId = (lista: PerfilAcessoOption[], slug = "operacional") => {
+    const perfilPadrao = lista.find((perfil) => perfil.slug === slug);
+    const operacional = lista.find((perfil) => perfil.slug === "operacional");
+    const primeiro = lista[0];
+
+    return (
+      perfilPadrao?.perfil_acesso_id ||
+      operacional?.perfil_acesso_id ||
+      primeiro?.perfil_acesso_id ||
+      ""
+    );
+  };
+
+  const getLegacyPerfilByPerfilAcessoId = (perfilAcessoId: string) => {
+    const perfil = perfisAcesso.find(
+      (item) => item.perfil_acesso_id === perfilAcessoId,
+    );
+
+    if (perfil?.slug === "admin") return "admin";
+    if (perfil?.slug === "externo") return "terceirizado";
+
+    return "suporte";
+  };
+
+  const getNomePerfilAcesso = (perfilAcessoId: string) => {
+    const perfil = perfisAcesso.find(
+      (item) => item.perfil_acesso_id === perfilAcessoId,
+    );
+
+    return perfil?.nome || "-";
+  };
+
   const loadPage = async () => {
     try {
       setLoading(true);
@@ -195,6 +239,25 @@ export default function EquipePage() {
       }
 
       setEmpresaId(usuario.empresa_id);
+
+      const { data: perfisData, error: perfisError } = await supabase
+        .from("perfis_acesso")
+        .select("perfil_acesso_id, nome, slug, is_admin, ativo")
+        .eq("empresa_id", usuario.empresa_id)
+        .eq("ativo", true)
+        .order("nome", { ascending: true });
+
+      if (perfisError) {
+        console.error("Erro ao buscar perfis de acesso:", perfisError);
+        setPerfisAcesso([]);
+      } else {
+        const listaPerfis = (perfisData as PerfilAcessoOption[]) || [];
+        const perfilPadrao = getPerfilPadraoId(listaPerfis);
+
+        setPerfisAcesso(listaPerfis);
+        setNovoPerfilAcessoId((prev) => prev || perfilPadrao);
+        setPerfilVinculoId((prev) => prev || perfilPadrao);
+      }
 
       const { data, error } = await supabase
         .from("membros_equipe")
@@ -247,10 +310,12 @@ export default function EquipePage() {
   };
 
   const resetVincularModal = () => {
+    const perfilPadrao = getPerfilPadraoId(perfisAcesso);
+
     setCodigoNovoVinculo("");
     setPerfilEncontrado(null);
     setNovoTipoMembro("colaborador");
-    setNovoPerfilAcesso("suporte");
+    setNovoPerfilAcessoId(perfilPadrao);
     setNovoCargo("");
     setNovaChavePix("");
     setNovaObservacao("");
@@ -311,6 +376,11 @@ export default function EquipePage() {
       return;
     }
 
+    if (!novoPerfilAcessoId) {
+      alert("Selecione um perfil de acesso.");
+      return;
+    }
+
     try {
       setCriandoVinculo(true);
 
@@ -318,7 +388,7 @@ export default function EquipePage() {
         p_codigo_vinculo: codigoNovoVinculo.trim(),
         p_tipo_membro: novoTipoMembro,
         p_cargo: novoCargo.trim() || null,
-        p_perfil: novoPerfilAcesso,
+        p_perfil: getLegacyPerfilByPerfilAcessoId(novoPerfilAcessoId),
         p_status: "ativo",
         p_chave_pix: novaChavePix.trim() || null,
         p_observacoes: novaObservacao.trim() || null,
@@ -352,14 +422,36 @@ export default function EquipePage() {
     setOpenModal(false);
   };
 
-  const handleOpenDetailModal = (membro: MembroEquipe) => {
+  const handleOpenDetailModal = async (membro: MembroEquipe) => {
     setSelectedMembro(membro);
+    setPerfilAcessoAtualId("");
+    setPerfilAcessoEditId("");
+
+    if (!membro.usuario_id) return;
+
+    const { data, error } = await supabase
+      .from("usuarios")
+      .select("perfil_acesso_id")
+      .eq("usuario_id", membro.usuario_id)
+      .maybeSingle<{ perfil_acesso_id: string | null }>();
+
+    if (error) {
+      console.error("Erro ao buscar perfil de acesso:", error);
+      return;
+    }
+
+    if (data?.perfil_acesso_id) {
+      setPerfilAcessoAtualId(data.perfil_acesso_id);
+      setPerfilAcessoEditId(data.perfil_acesso_id);
+    }
   };
 
   const handleCloseDetailModal = () => {
     setSelectedMembro(null);
     setCodigoVinculo("");
-    setPerfilVinculo("suporte");
+    setPerfilVinculoId("");
+    setPerfilAcessoAtualId("");
+    setPerfilAcessoEditId("");
   };
 
   const handleEditFromDetail = () => {
@@ -370,11 +462,55 @@ export default function EquipePage() {
     handleOpenEditModal(membroParaEditar);
   };
 
+  const handleAtualizarPerfilAcesso = async () => {
+    if (!selectedMembro) return;
+
+    if (!selectedMembro.usuario_id) {
+      alert("Este membro ainda não possui usuário vinculado.");
+      return;
+    }
+
+    if (!perfilAcessoEditId) {
+      alert("Selecione um perfil de acesso.");
+      return;
+    }
+
+    try {
+      setSavingPerfilAcesso(true);
+
+      const { error } = await supabase.rpc("atualizar_perfil_acesso_membro", {
+        p_membro_id: selectedMembro.membro_id,
+        p_perfil_acesso_id: perfilAcessoEditId,
+      });
+
+      if (error) {
+        console.error("Erro ao atualizar perfil de acesso:", error);
+        alert(error.message);
+        return;
+      }
+
+      alert("Perfil de acesso atualizado com sucesso.");
+
+      setPerfilAcessoAtualId(perfilAcessoEditId);
+      await loadPage();
+    } catch (err) {
+      console.error("Erro inesperado ao atualizar perfil de acesso:", err);
+      alert("Erro de conexão ao atualizar perfil de acesso.");
+    } finally {
+      setSavingPerfilAcesso(false);
+    }
+  };
+
   const handleVincularUsuario = async () => {
     if (!selectedMembro) return;
 
     if (!codigoVinculo.trim()) {
       alert("Informe o código de vínculo.");
+      return;
+    }
+
+    if (!perfilVinculoId) {
+      alert("Selecione um perfil de acesso.");
       return;
     }
 
@@ -384,7 +520,7 @@ export default function EquipePage() {
       const { error } = await supabase.rpc("vincular_membro_por_codigo", {
         p_membro_id: selectedMembro.membro_id,
         p_codigo_vinculo: codigoVinculo.trim(),
-        p_perfil: perfilVinculo,
+        p_perfil: getLegacyPerfilByPerfilAcessoId(perfilVinculoId),
       });
 
       if (error) {
@@ -397,7 +533,7 @@ export default function EquipePage() {
 
       setSelectedMembro(null);
       setCodigoVinculo("");
-      setPerfilVinculo("suporte");
+      setPerfilVinculoId("");
 
       await loadPage();
     } catch (err) {
@@ -425,7 +561,11 @@ export default function EquipePage() {
   const handleOpenEditModal = (membro: MembroEquipe) => {
     setEditingMembroId(membro.membro_id);
     setNome(membro.nome || "");
-    setTipoMembro(membro.tipo_membro || "colaborador");
+    setTipoMembro(
+      membro.tipo_membro === "parceiro"
+        ? "terceirizado"
+        : membro.tipo_membro || "colaborador",
+    );
     setCargo(membro.cargo || "");
     setStatus(membro.status || "ativo");
     setEmail(membro.email || "");
@@ -614,6 +754,9 @@ export default function EquipePage() {
     return membros.filter((membro) => {
       const term = search.toLowerCase();
 
+      const tipoNormalizado =
+        membro.tipo_membro === "parceiro" ? "terceirizado" : membro.tipo_membro;
+
       const matchesSearch =
         !term ||
         (membro.nome || "").toLowerCase().includes(term) ||
@@ -624,7 +767,7 @@ export default function EquipePage() {
         (membro.cidade || "").toLowerCase().includes(term);
 
       const matchesTipo =
-        tipoFilter === "Todos" || membro.tipo_membro === tipoFilter;
+        tipoFilter === "Todos" || tipoNormalizado === tipoFilter;
 
       const matchesStatus =
         statusFilter === "Todos" || membro.status === statusFilter;
@@ -645,8 +788,7 @@ export default function EquipePage() {
 
   const formatTipoMembro = (value: string) => {
     if (value === "colaborador") return "Colaborador";
-    if (value === "terceirizado") return "Terceirizado";
-    if (value === "parceiro") return "Parceiro";
+    if (value === "terceirizado" || value === "parceiro") return "Terceirizado";
     return value;
   };
 
@@ -693,10 +835,9 @@ export default function EquipePage() {
             onChange={(e) => setTipoFilter(e.target.value)}
             style={filterInput}
           >
-            <option value="Todos">Todos os tipos</option>
+            <option value="Todos">Todos os relacionamentos</option>
             <option value="colaborador">Colaborador</option>
             <option value="terceirizado">Terceirizado</option>
-            <option value="parceiro">Parceiro</option>
           </select>
 
           <select
@@ -876,7 +1017,7 @@ export default function EquipePage() {
 
                   <div style={modalGrid}>
                     <div>
-                      <label style={labelStyle}>Tipo de membro</label>
+                      <label style={labelStyle}>Relacionamento</label>
                       <select
                         value={novoTipoMembro}
                         onChange={(e) => setNovoTipoMembro(e.target.value)}
@@ -884,20 +1025,24 @@ export default function EquipePage() {
                       >
                         <option value="colaborador">Colaborador</option>
                         <option value="terceirizado">Terceirizado</option>
-                        <option value="parceiro">Parceiro</option>
                       </select>
                     </div>
 
                     <div>
                       <label style={labelStyle}>Perfil de acesso</label>
                       <select
-                        value={novoPerfilAcesso}
-                        onChange={(e) => setNovoPerfilAcesso(e.target.value)}
+                        value={novoPerfilAcessoId}
+                        onChange={(e) => setNovoPerfilAcessoId(e.target.value)}
                         style={inputStyle}
                       >
-                        <option value="suporte">Suporte</option>
-                        <option value="terceirizado">Terceirizado</option>
-                        <option value="admin">Admin</option>
+                        {perfisAcesso.map((perfil) => (
+                          <option
+                            key={perfil.perfil_acesso_id}
+                            value={perfil.perfil_acesso_id}
+                          >
+                            {perfil.nome}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -1093,8 +1238,58 @@ export default function EquipePage() {
               <div style={sectionTitle}>Acesso ao sistema</div>
 
               {selectedMembro.usuario_id ? (
-                <div style={accessInfoBox}>
-                  Este membro já está vinculado a um usuário do sistema.
+                <div style={linkAccessBox}>
+                  <div style={accessInfoBox}>
+                    Este membro já está vinculado a um usuário do sistema.
+                  </div>
+
+                  <div style={{ marginTop: "12px" }}>
+                    <label style={labelStyle}>Perfil de acesso atual</label>
+
+                    <div style={modalGrid}>
+                      <div>
+                        <select
+                          value={perfilAcessoEditId}
+                          onChange={(e) =>
+                            setPerfilAcessoEditId(e.target.value)
+                          }
+                          style={inputStyle}
+                        >
+                          {perfisAcesso.map((perfil) => (
+                            <option
+                              key={perfil.perfil_acesso_id}
+                              value={perfil.perfil_acesso_id}
+                            >
+                              {perfil.nome}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div style={helperText}>
+                          Atual:{" "}
+                          {getNomePerfilAcesso(
+                            perfilAcessoAtualId || perfilAcessoEditId,
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "flex-start" }}>
+                        <button
+                          type="button"
+                          onClick={handleAtualizarPerfilAcesso}
+                          disabled={
+                            savingPerfilAcesso ||
+                            perfilAcessoEditId === perfilAcessoAtualId
+                          }
+                          style={primaryButton}
+                        >
+                          {savingPerfilAcesso
+                            ? "Salvando..."
+                            : "Salvar perfil de acesso"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div style={linkAccessBox}>
@@ -1117,13 +1312,18 @@ export default function EquipePage() {
                     <div>
                       <label style={labelStyle}>Perfil de acesso</label>
                       <select
-                        value={perfilVinculo}
-                        onChange={(e) => setPerfilVinculo(e.target.value)}
+                        value={perfilVinculoId}
+                        onChange={(e) => setPerfilVinculoId(e.target.value)}
                         style={inputStyle}
                       >
-                        <option value="suporte">Suporte</option>
-                        <option value="terceirizado">Terceirizado</option>
-                        <option value="admin">Admin</option>
+                        {perfisAcesso.map((perfil) => (
+                          <option
+                            key={perfil.perfil_acesso_id}
+                            value={perfil.perfil_acesso_id}
+                          >
+                            {perfil.nome}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -1168,7 +1368,7 @@ export default function EquipePage() {
                   <p style={modalSubtitle}>
                     {editingMembroId
                       ? "Atualize os dados do membro da equipe."
-                      : "Cadastre colaboradores, terceirizados ou parceiros."}
+                      : "Cadastre colaboradores ou terceirizados."}
                   </p>
                 </div>
 
@@ -1191,7 +1391,7 @@ export default function EquipePage() {
                 </div>
 
                 <div>
-                  <label style={labelStyle}>Tipo</label>
+                  <label style={labelStyle}>Relacionamento</label>
                   <select
                     value={tipoMembro}
                     onChange={(e) => setTipoMembro(e.target.value)}
@@ -1199,7 +1399,6 @@ export default function EquipePage() {
                   >
                     <option value="colaborador">Colaborador</option>
                     <option value="terceirizado">Terceirizado</option>
-                    <option value="parceiro">Parceiro</option>
                   </select>
                 </div>
 
@@ -1424,6 +1623,72 @@ export default function EquipePage() {
       </div>
     </AppLayout>
   );
+}
+
+function tipoBadge(tipo: string) {
+  if (tipo === "terceirizado" || tipo === "parceiro") {
+    return {
+      background: "#fef3c7",
+      color: "#92400e",
+      padding: "3px 8px",
+      borderRadius: "999px",
+      fontSize: "10px",
+      fontWeight: 600,
+    };
+  }
+
+  return {
+    background: "#f3f4f6",
+    color: "#374151",
+    padding: "3px 8px",
+    borderRadius: "999px",
+    fontSize: "10px",
+    fontWeight: 600,
+  };
+}
+
+function statusBadge(status: string) {
+  if (status === "ativo") {
+    return {
+      background: "#dcfce7",
+      color: "#166534",
+      padding: "3px 8px",
+      borderRadius: "999px",
+      fontSize: "10px",
+      fontWeight: 600,
+    };
+  }
+
+  return {
+    background: "#e5e7eb",
+    color: "#6b7280",
+    padding: "3px 8px",
+    borderRadius: "999px",
+    fontSize: "10px",
+    fontWeight: 600,
+  };
+}
+
+function accessBadge(usuarioId: string | null) {
+  if (usuarioId) {
+    return {
+      background: "#ccfbf1",
+      color: "#0f766e",
+      padding: "3px 8px",
+      borderRadius: "999px",
+      fontSize: "10px",
+      fontWeight: 600,
+    };
+  }
+
+  return {
+    background: "#f3f4f6",
+    color: "#6b7280",
+    padding: "3px 8px",
+    borderRadius: "999px",
+    fontSize: "10px",
+    fontWeight: 600,
+  };
 }
 
 const headerActions = {
@@ -1778,80 +2043,3 @@ const modalFooter = {
   gap: "10px",
   marginTop: "16px",
 };
-
-function tipoBadge(tipo: string) {
-  if (tipo === "terceirizado") {
-    return {
-      background: "#fef3c7",
-      color: "#92400e",
-      padding: "3px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
-    };
-  }
-
-  if (tipo === "parceiro") {
-    return {
-      background: "#dbeafe",
-      color: "#1d4ed8",
-      padding: "3px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
-    };
-  }
-
-  return {
-    background: "#f3f4f6",
-    color: "#374151",
-    padding: "3px 8px",
-    borderRadius: "999px",
-    fontSize: "10px",
-    fontWeight: 600,
-  };
-}
-
-function statusBadge(status: string) {
-  if (status === "ativo") {
-    return {
-      background: "#dcfce7",
-      color: "#166534",
-      padding: "3px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
-    };
-  }
-
-  return {
-    background: "#e5e7eb",
-    color: "#6b7280",
-    padding: "3px 8px",
-    borderRadius: "999px",
-    fontSize: "10px",
-    fontWeight: 600,
-  };
-}
-
-function accessBadge(usuarioId: string | null) {
-  if (usuarioId) {
-    return {
-      background: "#ccfbf1",
-      color: "#0f766e",
-      padding: "3px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
-    };
-  }
-
-  return {
-    background: "#f3f4f6",
-    color: "#6b7280",
-    padding: "3px 8px",
-    borderRadius: "999px",
-    fontSize: "10px",
-    fontWeight: 600,
-  };
-}
