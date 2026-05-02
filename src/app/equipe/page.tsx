@@ -44,6 +44,19 @@ type ViaCepResponse = {
   erro?: boolean;
 };
 
+type PerfilVinculoBusca = {
+  usuario_id: string;
+  nome: string;
+  email: string;
+  telefone: string | null;
+  whatsapp: string | null;
+  tipo_documento: string | null;
+  documento: string | null;
+  cidade: string | null;
+  estado: string | null;
+  codigo_vinculo: string;
+};
+
 export default function EquipePage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [membros, setMembros] = useState<MembroEquipe[]>([]);
@@ -57,10 +70,25 @@ export default function EquipePage() {
 
   const [openModal, setOpenModal] = useState(false);
   const [editingMembroId, setEditingMembroId] = useState<string | null>(null);
-  const [selectedMembro, setSelectedMembro] = useState<MembroEquipe | null>(null);
+  const [selectedMembro, setSelectedMembro] = useState<MembroEquipe | null>(
+    null,
+  );
   const [codigoVinculo, setCodigoVinculo] = useState("");
-const [perfilVinculo, setPerfilVinculo] = useState("suporte");
-const [linkingUser, setLinkingUser] = useState(false);
+  const [perfilVinculo, setPerfilVinculo] = useState("suporte");
+  const [linkingUser, setLinkingUser] = useState(false);
+
+  const [openVincularModal, setOpenVincularModal] = useState(false);
+  const [codigoNovoVinculo, setCodigoNovoVinculo] = useState("");
+  const [perfilEncontrado, setPerfilEncontrado] =
+    useState<PerfilVinculoBusca | null>(null);
+  const [buscandoPerfil, setBuscandoPerfil] = useState(false);
+  const [criandoVinculo, setCriandoVinculo] = useState(false);
+
+  const [novoTipoMembro, setNovoTipoMembro] = useState("colaborador");
+  const [novoPerfilAcesso, setNovoPerfilAcesso] = useState("suporte");
+  const [novoCargo, setNovoCargo] = useState("");
+  const [novaChavePix, setNovaChavePix] = useState("");
+  const [novaObservacao, setNovaObservacao] = useState("");
 
   const [nome, setNome] = useState("");
   const [tipoMembro, setTipoMembro] = useState("colaborador");
@@ -171,7 +199,7 @@ const [linkingUser, setLinkingUser] = useState(false);
       const { data, error } = await supabase
         .from("membros_equipe")
         .select(
-          "membro_id, empresa_id, usuario_id, nome, tipo_membro, cargo, status, email, telefone, whatsapp, tipo_documento, documento, razao_social, cep, endereco, numero, complemento, bairro, cidade, estado, chave_pix, observacoes, criado_em"
+          "membro_id, empresa_id, usuario_id, nome, tipo_membro, cargo, status, email, telefone, whatsapp, tipo_documento, documento, razao_social, cep, endereco, numero, complemento, bairro, cidade, estado, chave_pix, observacoes, criado_em",
         )
         .eq("empresa_id", usuario.empresa_id)
         .order("criado_em", { ascending: false });
@@ -218,6 +246,102 @@ const [linkingUser, setLinkingUser] = useState(false);
     setObservacoes("");
   };
 
+  const resetVincularModal = () => {
+    setCodigoNovoVinculo("");
+    setPerfilEncontrado(null);
+    setNovoTipoMembro("colaborador");
+    setNovoPerfilAcesso("suporte");
+    setNovoCargo("");
+    setNovaChavePix("");
+    setNovaObservacao("");
+  };
+
+  const handleOpenVincularModal = () => {
+    resetVincularModal();
+    setOpenVincularModal(true);
+  };
+
+  const handleCloseVincularModal = () => {
+    resetVincularModal();
+    setOpenVincularModal(false);
+  };
+
+  const handleBuscarPerfilPorCodigo = async () => {
+    if (!codigoNovoVinculo.trim()) {
+      alert("Informe o código de vínculo.");
+      return;
+    }
+
+    try {
+      setBuscandoPerfil(true);
+      setPerfilEncontrado(null);
+
+      const { data, error } = await supabase.rpc(
+        "buscar_perfil_por_codigo_vinculo",
+        {
+          p_codigo: codigoNovoVinculo.trim(),
+        },
+      );
+
+      if (error) {
+        console.error("Erro ao buscar perfil:", error);
+        alert(error.message);
+        return;
+      }
+
+      const perfil = Array.isArray(data) ? data[0] : data;
+
+      if (!perfil) {
+        alert("Nenhum usuário encontrado com este código.");
+        return;
+      }
+
+      setPerfilEncontrado(perfil as PerfilVinculoBusca);
+    } catch (err) {
+      console.error("Erro inesperado ao buscar perfil:", err);
+      alert("Erro de conexão ao buscar perfil.");
+    } finally {
+      setBuscandoPerfil(false);
+    }
+  };
+
+  const handleCriarMembroPorCodigo = async () => {
+    if (!perfilEncontrado) {
+      alert("Busque um perfil antes de vincular.");
+      return;
+    }
+
+    try {
+      setCriandoVinculo(true);
+
+      const { error } = await supabase.rpc("criar_membro_por_codigo", {
+        p_codigo_vinculo: codigoNovoVinculo.trim(),
+        p_tipo_membro: novoTipoMembro,
+        p_cargo: novoCargo.trim() || null,
+        p_perfil: novoPerfilAcesso,
+        p_status: "ativo",
+        p_chave_pix: novaChavePix.trim() || null,
+        p_observacoes: novaObservacao.trim() || null,
+      });
+
+      if (error) {
+        console.error("Erro ao criar membro por código:", error);
+        alert(error.message);
+        return;
+      }
+
+      alert("Usuário vinculado e membro criado com sucesso.");
+
+      handleCloseVincularModal();
+      await loadPage();
+    } catch (err) {
+      console.error("Erro inesperado ao criar vínculo:", err);
+      alert("Erro de conexão ao criar vínculo.");
+    } finally {
+      setCriandoVinculo(false);
+    }
+  };
+
   const handleOpenCreateModal = () => {
     resetForm();
     setOpenModal(true);
@@ -229,74 +353,74 @@ const [linkingUser, setLinkingUser] = useState(false);
   };
 
   const handleOpenDetailModal = (membro: MembroEquipe) => {
-  setSelectedMembro(membro);
-};
+    setSelectedMembro(membro);
+  };
 
-const handleCloseDetailModal = () => {
-  setSelectedMembro(null);
-  setCodigoVinculo("");
-  setPerfilVinculo("suporte");
-};
-
-const handleEditFromDetail = () => {
-  if (!selectedMembro) return;
-
-  const membroParaEditar = selectedMembro;
-  setSelectedMembro(null);
-  handleOpenEditModal(membroParaEditar);
-};
-
-const handleVincularUsuario = async () => {
-  if (!selectedMembro) return;
-
-  if (!codigoVinculo.trim()) {
-    alert("Informe o código de vínculo.");
-    return;
-  }
-
-  try {
-    setLinkingUser(true);
-
-    const { error } = await supabase.rpc("vincular_membro_por_codigo", {
-      p_membro_id: selectedMembro.membro_id,
-      p_codigo_vinculo: codigoVinculo.trim(),
-      p_perfil: perfilVinculo,
-    });
-
-    if (error) {
-      console.error("Erro ao vincular usuário:", error);
-      alert(error.message);
-      return;
-    }
-
-    alert("Usuário vinculado com sucesso.");
-
+  const handleCloseDetailModal = () => {
     setSelectedMembro(null);
     setCodigoVinculo("");
     setPerfilVinculo("suporte");
+  };
 
-    await loadPage();
-  } catch (err) {
-    console.error("Erro inesperado ao vincular usuário:", err);
-    alert("Erro de conexão ao vincular usuário.");
-  } finally {
-    setLinkingUser(false);
-  }
-};
+  const handleEditFromDetail = () => {
+    if (!selectedMembro) return;
 
-const getEnderecoCompleto = (membro: MembroEquipe) => {
-  const partes = [
-    membro.endereco,
-    membro.numero,
-    membro.complemento,
-    membro.bairro,
-    membro.cidade,
-    membro.estado,
-    membro.cep ? formatCep(membro.cep) : null,
-  ].filter(Boolean);
+    const membroParaEditar = selectedMembro;
+    setSelectedMembro(null);
+    handleOpenEditModal(membroParaEditar);
+  };
 
-  return partes.length > 0 ? partes.join(", ") : "-";
-};
+  const handleVincularUsuario = async () => {
+    if (!selectedMembro) return;
+
+    if (!codigoVinculo.trim()) {
+      alert("Informe o código de vínculo.");
+      return;
+    }
+
+    try {
+      setLinkingUser(true);
+
+      const { error } = await supabase.rpc("vincular_membro_por_codigo", {
+        p_membro_id: selectedMembro.membro_id,
+        p_codigo_vinculo: codigoVinculo.trim(),
+        p_perfil: perfilVinculo,
+      });
+
+      if (error) {
+        console.error("Erro ao vincular usuário:", error);
+        alert(error.message);
+        return;
+      }
+
+      alert("Usuário vinculado com sucesso.");
+
+      setSelectedMembro(null);
+      setCodigoVinculo("");
+      setPerfilVinculo("suporte");
+
+      await loadPage();
+    } catch (err) {
+      console.error("Erro inesperado ao vincular usuário:", err);
+      alert("Erro de conexão ao vincular usuário.");
+    } finally {
+      setLinkingUser(false);
+    }
+  };
+
+  const getEnderecoCompleto = (membro: MembroEquipe) => {
+    const partes = [
+      membro.endereco,
+      membro.numero,
+      membro.complemento,
+      membro.bairro,
+      membro.cidade,
+      membro.estado,
+      membro.cep ? formatCep(membro.cep) : null,
+    ].filter(Boolean);
+
+    return partes.length > 0 ? partes.join(", ") : "-";
+  };
 
   const handleOpenEditModal = (membro: MembroEquipe) => {
     setEditingMembroId(membro.membro_id);
@@ -308,7 +432,9 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
     setTelefone(formatStoredPhone(membro.telefone));
     setWhatsapp(formatStoredPhone(membro.whatsapp));
     setTipoDocumento(membro.tipo_documento || "");
-    setDocumento(formatStoredDocumento(membro.documento, membro.tipo_documento));
+    setDocumento(
+      formatStoredDocumento(membro.documento, membro.tipo_documento),
+    );
     setRazaoSocial(membro.razao_social || "");
     setCep(formatCep(membro.cep || ""));
     setEndereco(membro.endereco || "");
@@ -339,7 +465,9 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
     try {
       setLoadingCep(true);
 
-      const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const response = await fetch(
+        `https://viacep.com.br/ws/${cepLimpo}/json/`,
+      );
       const data = (await response.json()) as ViaCepResponse;
 
       if (data.erro) {
@@ -541,9 +669,15 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
             </p>
           </div>
 
-          <button onClick={handleOpenCreateModal} style={primaryButton}>
-            + Novo Membro
-          </button>
+          <div style={headerActions}>
+            <button onClick={handleOpenVincularModal} style={primaryButton}>
+              + Vincular usuário
+            </button>
+
+            <button onClick={handleOpenCreateModal} style={secondaryButton}>
+              Cadastrar manualmente
+            </button>
+          </div>
         </div>
 
         <div style={filtersRow}>
@@ -593,7 +727,9 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
                       : "none",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                >
                   <div style={avatarBox}>{getInitials(membro.nome)}</div>
 
                   <div>
@@ -608,15 +744,15 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
                       {membro.whatsapp
                         ? `WhatsApp: ${formatStoredPhone(membro.whatsapp)}`
                         : membro.telefone
-                        ? `Telefone: ${formatStoredPhone(membro.telefone)}`
-                        : "Sem telefone"}
+                          ? `Telefone: ${formatStoredPhone(membro.telefone)}`
+                          : "Sem telefone"}
                       {membro.cidade || membro.estado
                         ? ` • ${membro.cidade || "-"} / ${membro.estado || "-"}`
                         : ""}
                       {membro.documento
                         ? ` • ${formatStoredDocumento(
                             membro.documento,
-                            membro.tipo_documento
+                            membro.tipo_documento,
                           )}`
                         : ""}
                     </div>
@@ -635,216 +771,391 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
                   <span style={accessBadge(membro.usuario_id)}>
                     {membro.usuario_id ? "Com acesso" : "Sem acesso"}
                   </span>
-              
-                  <button
-  type="button"
-  onClick={() => handleOpenDetailModal(membro)}
-  style={detailButton}
->
-  Ver
-</button>
 
-<button
-  type="button"
-  onClick={() => handleOpenEditModal(membro)}
-  style={editButton}
->
-  Editar
-</button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDetailModal(membro)}
+                    style={detailButton}
+                  >
+                    Ver
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(membro)}
+                    style={editButton}
+                  >
+                    Editar
+                  </button>
                 </div>
               </div>
             ))
           )}
         </div>
 
-{selectedMembro && (
-  <div style={overlayStyle}>
-    <div style={detailModalStyle}>
-      <div style={modalHeader}>
-        <div>
-          <h3 style={modalTitle}>{selectedMembro.nome}</h3>
-          <p style={modalSubtitle}>
-            {formatTipoMembro(selectedMembro.tipo_membro)}
-            {selectedMembro.cargo ? ` • ${selectedMembro.cargo}` : ""}
-          </p>
-        </div>
+        {openVincularModal && (
+          <div style={overlayStyle}>
+            <div style={modalStyle}>
+              <div style={modalHeader}>
+                <div>
+                  <h3 style={modalTitle}>Vincular usuário por código</h3>
+                  <p style={modalSubtitle}>
+                    Busque o código enviado pelo colaborador e crie o vínculo
+                    com a empresa.
+                  </p>
+                </div>
 
-        <button onClick={handleCloseDetailModal} style={closeButtonStyle}>
-          ×
-        </button>
-      </div>
+                <button
+                  onClick={handleCloseVincularModal}
+                  style={closeButtonStyle}
+                >
+                  ×
+                </button>
+              </div>
 
-      <div style={detailHeaderRow}>
-        <span style={tipoBadge(selectedMembro.tipo_membro)}>
-          {formatTipoMembro(selectedMembro.tipo_membro)}
-        </span>
+              <div style={sectionTitle}>Buscar usuário</div>
 
-        <span style={statusBadge(selectedMembro.status)}>
-          {formatStatus(selectedMembro.status)}
-        </span>
+              <div style={modalGrid}>
+                <div>
+                  <label style={labelStyle}>Código de vínculo</label>
+                  <input
+                    value={codigoNovoVinculo}
+                    onChange={(e) => {
+                      setCodigoNovoVinculo(e.target.value.toUpperCase());
+                      setPerfilEncontrado(null);
+                    }}
+                    placeholder="Ex: 0293B34A"
+                    style={inputStyle}
+                  />
+                  <div style={helperText}>
+                    Código gerado na página Meu Perfil do usuário.
+                  </div>
+                </div>
 
-        <span style={accessBadge(selectedMembro.usuario_id)}>
-          {selectedMembro.usuario_id ? "Com acesso" : "Sem acesso"}
-        </span>
-      </div>
+                <div style={{ display: "flex", alignItems: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={handleBuscarPerfilPorCodigo}
+                    disabled={buscandoPerfil}
+                    style={primaryButton}
+                  >
+                    {buscandoPerfil ? "Buscando..." : "Buscar usuário"}
+                  </button>
+                </div>
+              </div>
 
-      <div style={sectionTitle}>Contato</div>
+              {perfilEncontrado && (
+                <>
+                  <div style={sectionTitle}>Usuário encontrado</div>
 
-      <div style={detailGrid}>
-        <div style={detailBox}>
-          <div style={detailLabel}>E-mail</div>
-          <div style={detailValue}>{selectedMembro.email || "-"}</div>
-        </div>
+                  <div style={perfilPreviewBox}>
+                    <div style={avatarBox}>
+                      {getInitials(perfilEncontrado.nome)}
+                    </div>
 
-        <div style={detailBox}>
-          <div style={detailLabel}>Telefone</div>
-          <div style={detailValue}>
-            {selectedMembro.telefone
-              ? formatStoredPhone(selectedMembro.telefone)
-              : "-"}
+                    <div>
+                      <div style={nameStyle}>{perfilEncontrado.nome}</div>
+                      <div style={emailStyle}>{perfilEncontrado.email}</div>
+
+                      <div style={smallInfo}>
+                        {perfilEncontrado.whatsapp
+                          ? `WhatsApp: ${formatStoredPhone(perfilEncontrado.whatsapp)}`
+                          : perfilEncontrado.telefone
+                            ? `Telefone: ${formatStoredPhone(perfilEncontrado.telefone)}`
+                            : "Sem telefone"}
+                        {perfilEncontrado.cidade || perfilEncontrado.estado
+                          ? ` • ${perfilEncontrado.cidade || "-"} / ${
+                              perfilEncontrado.estado || "-"
+                            }`
+                          : ""}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={sectionTitle}>Dados do vínculo na empresa</div>
+
+                  <div style={modalGrid}>
+                    <div>
+                      <label style={labelStyle}>Tipo de membro</label>
+                      <select
+                        value={novoTipoMembro}
+                        onChange={(e) => setNovoTipoMembro(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="colaborador">Colaborador</option>
+                        <option value="terceirizado">Terceirizado</option>
+                        <option value="parceiro">Parceiro</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Perfil de acesso</label>
+                      <select
+                        value={novoPerfilAcesso}
+                        onChange={(e) => setNovoPerfilAcesso(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="suporte">Suporte</option>
+                        <option value="terceirizado">Terceirizado</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+
+                    <div style={fieldFull}>
+                      <label style={labelStyle}>Cargo / função</label>
+                      <input
+                        value={novoCargo}
+                        onChange={(e) => setNovoCargo(e.target.value)}
+                        placeholder="Ex: Social media, atendimento, financeiro..."
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div style={fieldFull}>
+                      <label style={labelStyle}>Chave Pix</label>
+                      <input
+                        value={novaChavePix}
+                        onChange={(e) => setNovaChavePix(e.target.value)}
+                        placeholder="Opcional"
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div style={fieldFull}>
+                      <label style={labelStyle}>Observações internas</label>
+                      <textarea
+                        value={novaObservacao}
+                        onChange={(e) => setNovaObservacao(e.target.value)}
+                        placeholder="Observações visíveis apenas para a empresa..."
+                        style={textareaStyle}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div style={modalFooter}>
+                <button
+                  onClick={handleCloseVincularModal}
+                  style={secondaryButton}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  onClick={handleCriarMembroPorCodigo}
+                  disabled={!perfilEncontrado || criandoVinculo}
+                  style={primaryButton}
+                >
+                  {criandoVinculo ? "Vinculando..." : "Criar vínculo"}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div style={detailBox}>
-          <div style={detailLabel}>WhatsApp</div>
-          <div style={detailValue}>
-            {selectedMembro.whatsapp
-              ? formatStoredPhone(selectedMembro.whatsapp)
-              : "-"}
+        {selectedMembro && (
+          <div style={overlayStyle}>
+            <div style={detailModalStyle}>
+              <div style={modalHeader}>
+                <div>
+                  <h3 style={modalTitle}>{selectedMembro.nome}</h3>
+                  <p style={modalSubtitle}>
+                    {formatTipoMembro(selectedMembro.tipo_membro)}
+                    {selectedMembro.cargo ? ` • ${selectedMembro.cargo}` : ""}
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleCloseDetailModal}
+                  style={closeButtonStyle}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={detailHeaderRow}>
+                <span style={tipoBadge(selectedMembro.tipo_membro)}>
+                  {formatTipoMembro(selectedMembro.tipo_membro)}
+                </span>
+
+                <span style={statusBadge(selectedMembro.status)}>
+                  {formatStatus(selectedMembro.status)}
+                </span>
+
+                <span style={accessBadge(selectedMembro.usuario_id)}>
+                  {selectedMembro.usuario_id ? "Com acesso" : "Sem acesso"}
+                </span>
+              </div>
+
+              <div style={sectionTitle}>Contato</div>
+
+              <div style={detailGrid}>
+                <div style={detailBox}>
+                  <div style={detailLabel}>E-mail</div>
+                  <div style={detailValue}>{selectedMembro.email || "-"}</div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>Telefone</div>
+                  <div style={detailValue}>
+                    {selectedMembro.telefone
+                      ? formatStoredPhone(selectedMembro.telefone)
+                      : "-"}
+                  </div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>WhatsApp</div>
+                  <div style={detailValue}>
+                    {selectedMembro.whatsapp
+                      ? formatStoredPhone(selectedMembro.whatsapp)
+                      : "-"}
+                  </div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>Cargo / função</div>
+                  <div style={detailValue}>{selectedMembro.cargo || "-"}</div>
+                </div>
+              </div>
+
+              <div style={sectionTitle}>Documento</div>
+
+              <div style={detailGrid}>
+                <div style={detailBox}>
+                  <div style={detailLabel}>Tipo documento</div>
+                  <div style={detailValue}>
+                    {selectedMembro.tipo_documento
+                      ? selectedMembro.tipo_documento.toUpperCase()
+                      : "-"}
+                  </div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>Documento</div>
+                  <div style={detailValue}>
+                    {selectedMembro.documento
+                      ? formatStoredDocumento(
+                          selectedMembro.documento,
+                          selectedMembro.tipo_documento,
+                        )
+                      : "-"}
+                  </div>
+                </div>
+
+                <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
+                  <div style={detailLabel}>Razão social</div>
+                  <div style={detailValue}>
+                    {selectedMembro.razao_social || "-"}
+                  </div>
+                </div>
+              </div>
+
+              <div style={sectionTitle}>Endereço</div>
+
+              <div style={detailGrid}>
+                <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
+                  <div style={detailLabel}>Endereço completo</div>
+                  <div style={detailValue}>
+                    {getEnderecoCompleto(selectedMembro)}
+                  </div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>Cidade</div>
+                  <div style={detailValue}>{selectedMembro.cidade || "-"}</div>
+                </div>
+
+                <div style={detailBox}>
+                  <div style={detailLabel}>Estado</div>
+                  <div style={detailValue}>{selectedMembro.estado || "-"}</div>
+                </div>
+              </div>
+
+              <div style={sectionTitle}>Pagamento</div>
+
+              <div style={detailGrid}>
+                <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
+                  <div style={detailLabel}>Chave Pix</div>
+                  <div style={detailValue}>
+                    {selectedMembro.chave_pix || "-"}
+                  </div>
+                </div>
+              </div>
+
+              <div style={sectionTitle}>Observações</div>
+
+              <div style={observationBox}>
+                {selectedMembro.observacoes || "Nenhuma observação cadastrada."}
+              </div>
+
+              <div style={sectionTitle}>Acesso ao sistema</div>
+
+              {selectedMembro.usuario_id ? (
+                <div style={accessInfoBox}>
+                  Este membro já está vinculado a um usuário do sistema.
+                </div>
+              ) : (
+                <div style={linkAccessBox}>
+                  <div style={modalGrid}>
+                    <div>
+                      <label style={labelStyle}>Código de vínculo</label>
+                      <input
+                        value={codigoVinculo}
+                        onChange={(e) =>
+                          setCodigoVinculo(e.target.value.toUpperCase())
+                        }
+                        placeholder="Ex: 57E7DD5F"
+                        style={inputStyle}
+                      />
+                      <div style={helperText}>
+                        Código gerado no perfil do usuário cadastrado.
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Perfil de acesso</label>
+                      <select
+                        value={perfilVinculo}
+                        onChange={(e) => setPerfilVinculo(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="suporte">Suporte</option>
+                        <option value="terceirizado">Terceirizado</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={handleVincularUsuario}
+                      disabled={linkingUser}
+                      style={primaryButton}
+                    >
+                      {linkingUser ? "Vinculando..." : "Vincular usuário"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={modalFooter}>
+                <button
+                  onClick={handleCloseDetailModal}
+                  style={secondaryButton}
+                >
+                  Fechar
+                </button>
+
+                <button onClick={handleEditFromDetail} style={primaryButton}>
+                  Editar membro
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div style={detailBox}>
-          <div style={detailLabel}>Cargo / função</div>
-          <div style={detailValue}>{selectedMembro.cargo || "-"}</div>
-        </div>
-      </div>
-
-      <div style={sectionTitle}>Documento</div>
-
-      <div style={detailGrid}>
-        <div style={detailBox}>
-          <div style={detailLabel}>Tipo documento</div>
-          <div style={detailValue}>
-            {selectedMembro.tipo_documento
-              ? selectedMembro.tipo_documento.toUpperCase()
-              : "-"}
-          </div>
-        </div>
-
-        <div style={detailBox}>
-          <div style={detailLabel}>Documento</div>
-          <div style={detailValue}>
-            {selectedMembro.documento
-              ? formatStoredDocumento(
-                  selectedMembro.documento,
-                  selectedMembro.tipo_documento
-                )
-              : "-"}
-          </div>
-        </div>
-
-        <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
-          <div style={detailLabel}>Razão social</div>
-          <div style={detailValue}>{selectedMembro.razao_social || "-"}</div>
-        </div>
-      </div>
-
-      <div style={sectionTitle}>Endereço</div>
-
-      <div style={detailGrid}>
-        <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
-          <div style={detailLabel}>Endereço completo</div>
-          <div style={detailValue}>{getEnderecoCompleto(selectedMembro)}</div>
-        </div>
-
-        <div style={detailBox}>
-          <div style={detailLabel}>Cidade</div>
-          <div style={detailValue}>{selectedMembro.cidade || "-"}</div>
-        </div>
-
-        <div style={detailBox}>
-          <div style={detailLabel}>Estado</div>
-          <div style={detailValue}>{selectedMembro.estado || "-"}</div>
-        </div>
-      </div>
-
-      <div style={sectionTitle}>Pagamento</div>
-
-      <div style={detailGrid}>
-        <div style={{ ...detailBox, gridColumn: "1 / -1" }}>
-          <div style={detailLabel}>Chave Pix</div>
-          <div style={detailValue}>{selectedMembro.chave_pix || "-"}</div>
-        </div>
-      </div>
-
-      <div style={sectionTitle}>Observações</div>
-
-      <div style={observationBox}>
-        {selectedMembro.observacoes || "Nenhuma observação cadastrada."}
-      </div>
-
-<div style={sectionTitle}>Acesso ao sistema</div>
-
-{selectedMembro.usuario_id ? (
-  <div style={accessInfoBox}>
-    Este membro já está vinculado a um usuário do sistema.
-  </div>
-) : (
-  <div style={linkAccessBox}>
-    <div style={modalGrid}>
-      <div>
-        <label style={labelStyle}>Código de vínculo</label>
-        <input
-          value={codigoVinculo}
-          onChange={(e) => setCodigoVinculo(e.target.value.toUpperCase())}
-          placeholder="Ex: 57E7DD5F"
-          style={inputStyle}
-        />
-        <div style={helperText}>
-          Código gerado no perfil do usuário cadastrado.
-        </div>
-      </div>
-
-      <div>
-        <label style={labelStyle}>Perfil de acesso</label>
-        <select
-          value={perfilVinculo}
-          onChange={(e) => setPerfilVinculo(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="suporte">Suporte</option>
-          <option value="terceirizado">Terceirizado</option>
-          <option value="admin">Admin</option>
-        </select>
-      </div>
-    </div>
-
-    <div style={{ marginTop: "10px" }}>
-      <button
-        type="button"
-        onClick={handleVincularUsuario}
-        disabled={linkingUser}
-        style={primaryButton}
-      >
-        {linkingUser ? "Vinculando..." : "Vincular usuário"}
-      </button>
-    </div>
-  </div>
-)}
-
-      <div style={modalFooter}>
-        <button onClick={handleCloseDetailModal} style={secondaryButton}>
-          Fechar
-        </button>
-
-        <button onClick={handleEditFromDetail} style={primaryButton}>
-          Editar membro
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+        )}
 
         {openModal && (
           <div style={overlayStyle}>
@@ -966,8 +1277,8 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
                       tipoDocumento === "cpf"
                         ? "000.000.000-00"
                         : tipoDocumento === "cnpj"
-                        ? "00.000.000/0000-00"
-                        : "CPF ou CNPJ"
+                          ? "00.000.000/0000-00"
+                          : "CPF ou CNPJ"
                     }
                     style={inputStyle}
                     disabled={!tipoDocumento}
@@ -1103,8 +1414,8 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
                   {saving
                     ? "Salvando..."
                     : editingMembroId
-                    ? "Salvar alterações"
-                    : "Cadastrar membro"}
+                      ? "Salvar alterações"
+                      : "Cadastrar membro"}
                 </button>
               </div>
             </div>
@@ -1114,6 +1425,22 @@ const getEnderecoCompleto = (membro: MembroEquipe) => {
     </AppLayout>
   );
 }
+
+const headerActions = {
+  display: "flex",
+  gap: "8px",
+  alignItems: "center",
+};
+
+const perfilPreviewBox = {
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  padding: "12px",
+  display: "flex",
+  gap: "12px",
+  alignItems: "center",
+};
 
 const pageHeader = {
   marginBottom: "16px",

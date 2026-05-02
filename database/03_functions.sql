@@ -436,3 +436,249 @@ end;
 $function$;
 
 grant execute on function public.vincular_membro_por_codigo(uuid, text, text) to authenticated;
+
+-- =========================================================
+-- Função: criar_membro_por_codigo
+-- Cria/atualiza membro da equipe a partir do código de vínculo
+-- e cria o vínculo do usuário com a empresa.
+-- =========================================================
+
+
+create or replace function public.criar_membro_por_codigo(
+  p_codigo_vinculo text,
+  p_tipo_membro text default 'colaborador',
+  p_cargo text default null,
+  p_perfil text default 'suporte',
+  p_status text default 'ativo',
+  p_chave_pix text default null,
+  p_observacoes text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, auth
+as $function$
+declare
+  v_empresa_id uuid;
+  v_usuario_id uuid;
+  v_nome text;
+  v_email text;
+  v_telefone text;
+  v_whatsapp text;
+  v_tipo_documento text;
+  v_documento text;
+  v_cep text;
+  v_endereco text;
+  v_numero text;
+  v_complemento text;
+  v_bairro text;
+  v_cidade text;
+  v_estado text;
+  v_membro_id uuid;
+  v_empresa_usuario_existente uuid;
+begin
+  if p_tipo_membro not in ('colaborador', 'terceirizado', 'parceiro') then
+    raise exception 'Tipo de membro inválido. Use colaborador, terceirizado ou parceiro.';
+  end if;
+
+
+  if p_perfil not in ('admin', 'suporte', 'terceirizado') then
+    raise exception 'Perfil inválido. Use admin, suporte ou terceirizado.';
+  end if;
+
+
+  if p_status not in ('ativo', 'inativo') then
+    raise exception 'Status inválido. Use ativo ou inativo.';
+  end if;
+
+
+  select u.empresa_id
+  into v_empresa_id
+  from public.usuarios u
+  where u.usuario_id = auth.uid()
+  limit 1;
+
+
+  if v_empresa_id is null then
+    raise exception 'Usuário logado não possui empresa vinculada.';
+  end if;
+
+
+  select
+    pu.usuario_id,
+    pu.nome,
+    pu.email,
+    pu.telefone,
+    pu.whatsapp,
+    pu.tipo_documento,
+    pu.documento,
+    pu.cep,
+    pu.endereco,
+    pu.numero,
+    pu.complemento,
+    pu.bairro,
+    pu.cidade,
+    pu.estado
+  into
+    v_usuario_id,
+    v_nome,
+    v_email,
+    v_telefone,
+    v_whatsapp,
+    v_tipo_documento,
+    v_documento,
+    v_cep,
+    v_endereco,
+    v_numero,
+    v_complemento,
+    v_bairro,
+    v_cidade,
+    v_estado
+  from public.perfis_usuario pu
+  where pu.codigo_vinculo = upper(trim(p_codigo_vinculo))
+  limit 1;
+
+
+  if v_usuario_id is null then
+    raise exception 'Código de vínculo não encontrado.';
+  end if;
+
+
+  select u.empresa_id
+  into v_empresa_usuario_existente
+  from public.usuarios u
+  where u.usuario_id = v_usuario_id
+  limit 1;
+
+
+  if v_empresa_usuario_existente is not null
+     and v_empresa_usuario_existente <> v_empresa_id then
+    raise exception 'Este usuário já está vinculado a outra empresa.';
+  end if;
+
+
+  -- Primeiro cria/atualiza o vínculo do usuário com a empresa
+  insert into public.usuarios (
+    usuario_id,
+    empresa_id,
+    nome,
+    email,
+    perfil,
+    status
+  )
+  values (
+    v_usuario_id,
+    v_empresa_id,
+    v_nome,
+    v_email,
+    p_perfil,
+    'ativo'
+  )
+  on conflict on constraint usuarios_pkey
+  do update set
+    empresa_id = excluded.empresa_id,
+    nome = excluded.nome,
+    email = excluded.email,
+    perfil = excluded.perfil,
+    status = 'ativo';
+
+
+  -- Depois cria/atualiza o membro da equipe
+  select me.membro_id
+  into v_membro_id
+  from public.membros_equipe me
+  where me.empresa_id = v_empresa_id
+    and (
+      me.usuario_id = v_usuario_id
+      or lower(coalesce(me.email, '')) = lower(v_email)
+    )
+  limit 1;
+
+
+  if v_membro_id is null then
+    insert into public.membros_equipe (
+      empresa_id,
+      usuario_id,
+      nome,
+      tipo_membro,
+      cargo,
+      status,
+      email,
+      telefone,
+      whatsapp,
+      tipo_documento,
+      documento,
+      cep,
+      endereco,
+      numero,
+      complemento,
+      bairro,
+      cidade,
+      estado,
+      chave_pix,
+      observacoes
+    )
+    values (
+      v_empresa_id,
+      v_usuario_id,
+      v_nome,
+      p_tipo_membro,
+      nullif(trim(p_cargo), ''),
+      p_status,
+      v_email,
+      v_telefone,
+      v_whatsapp,
+      v_tipo_documento,
+      v_documento,
+      v_cep,
+      v_endereco,
+      v_numero,
+      v_complemento,
+      v_bairro,
+      v_cidade,
+      v_estado,
+      nullif(trim(p_chave_pix), ''),
+      nullif(trim(p_observacoes), '')
+    )
+    returning membro_id into v_membro_id;
+  else
+    update public.membros_equipe me
+    set
+      usuario_id = v_usuario_id,
+      nome = v_nome,
+      email = v_email,
+      telefone = v_telefone,
+      whatsapp = v_whatsapp,
+      tipo_documento = v_tipo_documento,
+      documento = v_documento,
+      cep = v_cep,
+      endereco = v_endereco,
+      numero = v_numero,
+      complemento = v_complemento,
+      bairro = v_bairro,
+      cidade = v_cidade,
+      estado = v_estado,
+      tipo_membro = p_tipo_membro,
+      cargo = nullif(trim(p_cargo), ''),
+      status = p_status,
+      chave_pix = nullif(trim(p_chave_pix), ''),
+      observacoes = nullif(trim(p_observacoes), '')
+    where me.membro_id = v_membro_id
+      and me.empresa_id = v_empresa_id;
+  end if;
+
+
+  return v_membro_id;
+end;
+$function$;
+
+
+grant execute on function public.criar_membro_por_codigo(
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text
+) to authenticated;
