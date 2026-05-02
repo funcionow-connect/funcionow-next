@@ -224,3 +224,42 @@ create table if not exists public.perfis_usuario (
       )
     )
 );
+
+-- =========================================================
+-- Access profiles / dynamic permissions
+-- =========================================================
+
+create table if not exists public.paginas_sistema (
+  pagina_key text primary key,
+  nome text not null,
+  rota text not null,
+  ordem integer not null default 0,
+  ativo boolean not null default true
+);
+
+create table if not exists public.perfis_acesso (
+  perfil_acesso_id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(empresa_id) on delete cascade,
+  nome text not null,
+  slug text not null,
+  descricao text,
+  is_admin boolean not null default false,
+  sistema boolean not null default false,
+  ativo boolean not null default true,
+  criado_em timestamp with time zone not null default now(),
+  atualizado_em timestamp with time zone not null default now()
+);
+
+create table if not exists public.perfil_acesso_permissoes (
+  permissao_id uuid primary key default gen_random_uuid(),
+  perfil_acesso_id uuid not null references public.perfis_acesso(perfil_acesso_id) on delete cascade,
+  pagina_key text not null references public.paginas_sistema(pagina_key) on delete cascade,
+  pode_acessar boolean not null default false,
+  pode_criar boolean not null default false,
+  pode_editar boolean not null default false,
+  pode_excluir boolean not null default false,
+  criado_em timestamp with time zone not null default now()
+);
+
+alter table public.usuarios
+add column if not exists perfil_acesso_id uuid references public.perfis_acesso(perfil_acesso_id);

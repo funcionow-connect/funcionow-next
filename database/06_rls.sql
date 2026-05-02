@@ -264,3 +264,190 @@ on public.perfis_usuario
 for insert
 to authenticated
 with check (usuario_id = auth.uid());
+
+-- =========================================================
+-- RLS: paginas_sistema
+-- =========================================================
+
+alter table public.paginas_sistema enable row level security;
+
+drop policy if exists "paginas_sistema_select_authenticated"
+on public.paginas_sistema;
+
+create policy "paginas_sistema_select_authenticated"
+on public.paginas_sistema
+for select
+to authenticated
+using (true);
+
+
+-- =========================================================
+-- RLS: perfis_acesso
+-- =========================================================
+
+alter table public.perfis_acesso enable row level security;
+
+drop policy if exists "perfis_acesso_select_empresa"
+on public.perfis_acesso;
+
+create policy "perfis_acesso_select_empresa"
+on public.perfis_acesso
+for select
+to authenticated
+using (
+  empresa_id in (
+    select u.empresa_id
+    from public.usuarios u
+    where u.usuario_id = auth.uid()
+  )
+);
+
+drop policy if exists "perfis_acesso_insert_admin_empresa"
+on public.perfis_acesso;
+
+create policy "perfis_acesso_insert_admin_empresa"
+on public.perfis_acesso
+for insert
+to authenticated
+with check (
+  empresa_id in (
+    select u.empresa_id
+    from public.usuarios u
+    where u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+);
+
+drop policy if exists "perfis_acesso_update_admin_empresa"
+on public.perfis_acesso;
+
+create policy "perfis_acesso_update_admin_empresa"
+on public.perfis_acesso
+for update
+to authenticated
+using (
+  empresa_id in (
+    select u.empresa_id
+    from public.usuarios u
+    where u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+)
+with check (
+  empresa_id in (
+    select u.empresa_id
+    from public.usuarios u
+    where u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+);
+
+drop policy if exists "perfis_acesso_delete_admin_empresa"
+on public.perfis_acesso;
+
+create policy "perfis_acesso_delete_admin_empresa"
+on public.perfis_acesso
+for delete
+to authenticated
+using (
+  empresa_id in (
+    select u.empresa_id
+    from public.usuarios u
+    where u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+  and sistema = false
+);
+
+
+-- =========================================================
+-- RLS: perfil_acesso_permissoes
+-- =========================================================
+
+alter table public.perfil_acesso_permissoes enable row level security;
+
+drop policy if exists "perfil_acesso_permissoes_select_empresa"
+on public.perfil_acesso_permissoes;
+
+create policy "perfil_acesso_permissoes_select_empresa"
+on public.perfil_acesso_permissoes
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.perfis_acesso pa
+    join public.usuarios u
+      on u.empresa_id = pa.empresa_id
+    where pa.perfil_acesso_id = perfil_acesso_permissoes.perfil_acesso_id
+      and u.usuario_id = auth.uid()
+  )
+);
+
+drop policy if exists "perfil_acesso_permissoes_insert_admin_empresa"
+on public.perfil_acesso_permissoes;
+
+create policy "perfil_acesso_permissoes_insert_admin_empresa"
+on public.perfil_acesso_permissoes
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.perfis_acesso pa
+    join public.usuarios u
+      on u.empresa_id = pa.empresa_id
+    where pa.perfil_acesso_id = perfil_acesso_permissoes.perfil_acesso_id
+      and u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+);
+
+drop policy if exists "perfil_acesso_permissoes_update_admin_empresa"
+on public.perfil_acesso_permissoes;
+
+create policy "perfil_acesso_permissoes_update_admin_empresa"
+on public.perfil_acesso_permissoes
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.perfis_acesso pa
+    join public.usuarios u
+      on u.empresa_id = pa.empresa_id
+    where pa.perfil_acesso_id = perfil_acesso_permissoes.perfil_acesso_id
+      and u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.perfis_acesso pa
+    join public.usuarios u
+      on u.empresa_id = pa.empresa_id
+    where pa.perfil_acesso_id = perfil_acesso_permissoes.perfil_acesso_id
+      and u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+);
+
+drop policy if exists "perfil_acesso_permissoes_delete_admin_empresa"
+on public.perfil_acesso_permissoes;
+
+create policy "perfil_acesso_permissoes_delete_admin_empresa"
+on public.perfil_acesso_permissoes
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.perfis_acesso pa
+    join public.usuarios u
+      on u.empresa_id = pa.empresa_id
+    where pa.perfil_acesso_id = perfil_acesso_permissoes.perfil_acesso_id
+      and u.usuario_id = auth.uid()
+      and u.perfil = 'admin'
+  )
+);

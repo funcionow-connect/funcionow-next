@@ -34,3 +34,15 @@ create trigger trg_perfis_usuario_set_atualizado_em
 before update on public.perfis_usuario
 for each row
 execute function public.set_atualizado_em();
+
+-- =========================================================
+-- Trigger atualizado_em: perfis_acesso
+-- =========================================================
+
+drop trigger if exists trg_perfis_acesso_set_atualizado_em
+on public.perfis_acesso;
+
+create trigger trg_perfis_acesso_set_atualizado_em
+before update on public.perfis_acesso
+for each row
+execute function public.set_atualizado_em();

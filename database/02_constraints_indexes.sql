@@ -136,3 +136,14 @@ on public.perfis_usuario using btree (codigo_vinculo);
 
 create index if not exists idx_perfis_usuario_email
 on public.perfis_usuario using btree (email);
+
+-- =========================================================
+-- Indexes: access profiles / dynamic permissions
+-- =========================================================
+
+create unique index if not exists uq_perfis_acesso_empresa_slug
+on public.perfis_acesso (empresa_id, slug);
+
+create unique index if not exists uq_perfil_acesso_permissoes_perfil_pagina
+on public.perfil_acesso_permissoes (perfil_acesso_id, pagina_key);
+

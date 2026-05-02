@@ -47,6 +47,7 @@ declare
   nome_usuario text;
   tipo_cadastro text;
   codigo_gerado text;
+  v_perfil_admin_id uuid;
 begin
   tipo_cadastro := coalesce(new.raw_user_meta_data->>'tipo_cadastro', 'empresa');
   nome_empresa := coalesce(new.raw_user_meta_data->>'empresa_nome', 'Empresa de ' || new.email);
@@ -79,19 +80,144 @@ begin
   values (nome_empresa)
   returning empresa_id into nova_empresa_id;
 
+  insert into public.perfis_acesso (
+    empresa_id,
+    nome,
+    slug,
+    descricao,
+    is_admin,
+    sistema
+  )
+  values
+    (
+      nova_empresa_id,
+      'Admin',
+      'admin',
+      'Acesso total à plataforma.',
+      true,
+      true
+    ),
+    (
+      nova_empresa_id,
+      'Operacional',
+      'operacional',
+      'Acesso às rotinas operacionais de creators, avaliações e campanhas.',
+      false,
+      true
+    ),
+    (
+      nova_empresa_id,
+      'Externo',
+      'externo',
+      'Acesso limitado para terceirizados ou usuários externos.',
+      false,
+      true
+    )
+  on conflict (empresa_id, slug)
+  do nothing;
+
+  insert into public.perfil_acesso_permissoes (
+    perfil_acesso_id,
+    pagina_key,
+    pode_acessar,
+    pode_criar,
+    pode_editar,
+    pode_excluir
+  )
+  select
+    pa.perfil_acesso_id,
+    ps.pagina_key,
+    true,
+    true,
+    true,
+    true
+  from public.perfis_acesso pa
+  cross join public.paginas_sistema ps
+  where pa.empresa_id = nova_empresa_id
+    and pa.slug = 'admin'
+  on conflict (perfil_acesso_id, pagina_key)
+  do update set
+    pode_acessar = true,
+    pode_criar = true,
+    pode_editar = true,
+    pode_excluir = true;
+
+  insert into public.perfil_acesso_permissoes (
+    perfil_acesso_id,
+    pagina_key,
+    pode_acessar,
+    pode_criar,
+    pode_editar,
+    pode_excluir
+  )
+  select
+    pa.perfil_acesso_id,
+    ps.pagina_key,
+    true,
+    case when ps.pagina_key in ('creators', 'avaliacoes', 'campanhas') then true else false end,
+    case when ps.pagina_key in ('creators', 'avaliacoes', 'campanhas', 'perfil') then true else false end,
+    false
+  from public.perfis_acesso pa
+  join public.paginas_sistema ps
+    on ps.pagina_key in ('dashboard', 'creators', 'avaliacoes', 'campanhas', 'perfil')
+  where pa.empresa_id = nova_empresa_id
+    and pa.slug = 'operacional'
+  on conflict (perfil_acesso_id, pagina_key)
+  do update set
+    pode_acessar = excluded.pode_acessar,
+    pode_criar = excluded.pode_criar,
+    pode_editar = excluded.pode_editar,
+    pode_excluir = excluded.pode_excluir;
+
+  insert into public.perfil_acesso_permissoes (
+    perfil_acesso_id,
+    pagina_key,
+    pode_acessar,
+    pode_criar,
+    pode_editar,
+    pode_excluir
+  )
+  select
+    pa.perfil_acesso_id,
+    ps.pagina_key,
+    true,
+    false,
+    false,
+    false
+  from public.perfis_acesso pa
+  join public.paginas_sistema ps
+    on ps.pagina_key in ('dashboard', 'creators', 'avaliacoes', 'perfil')
+  where pa.empresa_id = nova_empresa_id
+    and pa.slug = 'externo'
+  on conflict (perfil_acesso_id, pagina_key)
+  do update set
+    pode_acessar = excluded.pode_acessar,
+    pode_criar = excluded.pode_criar,
+    pode_editar = excluded.pode_editar,
+    pode_excluir = excluded.pode_excluir;
+
+  select pa.perfil_acesso_id
+  into v_perfil_admin_id
+  from public.perfis_acesso pa
+  where pa.empresa_id = nova_empresa_id
+    and pa.slug = 'admin'
+  limit 1;
+
   insert into public.usuarios (
     usuario_id,
     empresa_id,
     nome,
     email,
-    perfil
+    perfil,
+    perfil_acesso_id
   )
   values (
     new.id,
     nova_empresa_id,
     nome_usuario,
     new.email,
-    'admin'
+    'admin',
+    v_perfil_admin_id
   );
 
   return new;
@@ -338,7 +464,8 @@ grant execute on function public.buscar_perfil_por_codigo_vinculo(text) to authe
 
 -- =========================================================
 -- Função: vincular_membro_por_codigo
--- Vincula membro da equipe a um usuário por código
+-- Vincula membro existente da equipe a um usuário por código
+-- Mantém compatibilidade com perfil antigo e preenche perfil_acesso_id
 -- =========================================================
 
 drop function if exists public.vincular_membro_por_codigo(uuid, text, text);
@@ -359,6 +486,8 @@ declare
   v_usuario_id uuid;
   v_nome text;
   v_email text;
+  v_perfil_acesso_id uuid;
+  v_slug_perfil text;
 begin
   if p_perfil not in ('admin', 'suporte', 'terceirizado') then
     raise exception 'Perfil inválido. Use admin, suporte ou terceirizado.';
@@ -368,10 +497,11 @@ begin
   into v_admin_empresa_id
   from public.usuarios as u
   where u.usuario_id = auth.uid()
+    and u.perfil = 'admin'
   limit 1;
 
   if v_admin_empresa_id is null then
-    raise exception 'Usuário logado não possui empresa vinculada.';
+    raise exception 'Apenas administradores podem vincular usuários.';
   end if;
 
   select me.empresa_id
@@ -401,12 +531,31 @@ begin
     raise exception 'Código de vínculo não encontrado.';
   end if;
 
+  v_slug_perfil := case
+    when p_perfil = 'admin' then 'admin'
+    when p_perfil = 'suporte' then 'operacional'
+    when p_perfil = 'terceirizado' then 'externo'
+    else 'operacional'
+  end;
+
+  select pa.perfil_acesso_id
+  into v_perfil_acesso_id
+  from public.perfis_acesso pa
+  where pa.empresa_id = v_empresa_id
+    and pa.slug = v_slug_perfil
+  limit 1;
+
+  if v_perfil_acesso_id is null then
+    raise exception 'Perfil de acesso padrão não encontrado para esta empresa.';
+  end if;
+
   insert into public.usuarios (
     usuario_id,
     empresa_id,
     nome,
     email,
     perfil,
+    perfil_acesso_id,
     status
   )
   values (
@@ -415,6 +564,7 @@ begin
     v_nome,
     v_email,
     p_perfil,
+    v_perfil_acesso_id,
     'ativo'
   )
   on conflict on constraint usuarios_pkey
@@ -423,6 +573,7 @@ begin
     nome = excluded.nome,
     email = excluded.email,
     perfil = excluded.perfil,
+    perfil_acesso_id = excluded.perfil_acesso_id,
     status = 'ativo';
 
   update public.membros_equipe as me
@@ -439,10 +590,8 @@ grant execute on function public.vincular_membro_por_codigo(uuid, text, text) to
 
 -- =========================================================
 -- Função: criar_membro_por_codigo
--- Cria/atualiza membro da equipe a partir do código de vínculo
--- e cria o vínculo do usuário com a empresa.
+-- Cria/vincula membro usando código do perfil pessoal
 -- =========================================================
-
 
 create or replace function public.criar_membro_por_codigo(
   p_codigo_vinculo text,
@@ -476,33 +625,31 @@ declare
   v_estado text;
   v_membro_id uuid;
   v_empresa_usuario_existente uuid;
+  v_perfil_acesso_id uuid;
+  v_slug_perfil text;
 begin
-  if p_tipo_membro not in ('colaborador', 'terceirizado', 'parceiro') then
-    raise exception 'Tipo de membro inválido. Use colaborador, terceirizado ou parceiro.';
+  if p_tipo_membro not in ('colaborador', 'terceirizado') then
+    raise exception 'Tipo de relacionamento inválido. Use colaborador ou terceirizado.';
   end if;
-
 
   if p_perfil not in ('admin', 'suporte', 'terceirizado') then
     raise exception 'Perfil inválido. Use admin, suporte ou terceirizado.';
   end if;
 
-
   if p_status not in ('ativo', 'inativo') then
     raise exception 'Status inválido. Use ativo ou inativo.';
   end if;
-
 
   select u.empresa_id
   into v_empresa_id
   from public.usuarios u
   where u.usuario_id = auth.uid()
+    and u.perfil = 'admin'
   limit 1;
 
-
   if v_empresa_id is null then
-    raise exception 'Usuário logado não possui empresa vinculada.';
+    raise exception 'Usuário logado não possui empresa vinculada ou não é admin.';
   end if;
-
 
   select
     pu.usuario_id,
@@ -538,11 +685,9 @@ begin
   where pu.codigo_vinculo = upper(trim(p_codigo_vinculo))
   limit 1;
 
-
   if v_usuario_id is null then
     raise exception 'Código de vínculo não encontrado.';
   end if;
-
 
   select u.empresa_id
   into v_empresa_usuario_existente
@@ -550,20 +695,36 @@ begin
   where u.usuario_id = v_usuario_id
   limit 1;
 
-
   if v_empresa_usuario_existente is not null
      and v_empresa_usuario_existente <> v_empresa_id then
     raise exception 'Este usuário já está vinculado a outra empresa.';
   end if;
 
+  v_slug_perfil := case
+    when p_perfil = 'admin' then 'admin'
+    when p_perfil = 'suporte' then 'operacional'
+    when p_perfil = 'terceirizado' then 'externo'
+    else 'operacional'
+  end;
 
-  -- Primeiro cria/atualiza o vínculo do usuário com a empresa
+  select pa.perfil_acesso_id
+  into v_perfil_acesso_id
+  from public.perfis_acesso pa
+  where pa.empresa_id = v_empresa_id
+    and pa.slug = v_slug_perfil
+  limit 1;
+
+  if v_perfil_acesso_id is null then
+    raise exception 'Perfil de acesso padrão não encontrado para esta empresa.';
+  end if;
+
   insert into public.usuarios (
     usuario_id,
     empresa_id,
     nome,
     email,
     perfil,
+    perfil_acesso_id,
     status
   )
   values (
@@ -572,6 +733,7 @@ begin
     v_nome,
     v_email,
     p_perfil,
+    v_perfil_acesso_id,
     'ativo'
   )
   on conflict on constraint usuarios_pkey
@@ -580,10 +742,9 @@ begin
     nome = excluded.nome,
     email = excluded.email,
     perfil = excluded.perfil,
+    perfil_acesso_id = excluded.perfil_acesso_id,
     status = 'ativo';
 
-
-  -- Depois cria/atualiza o membro da equipe
   select me.membro_id
   into v_membro_id
   from public.membros_equipe me
@@ -591,9 +752,13 @@ begin
     and (
       me.usuario_id = v_usuario_id
       or lower(coalesce(me.email, '')) = lower(v_email)
+      or (
+        v_documento is not null
+        and trim(v_documento) <> ''
+        and me.documento = v_documento
+      )
     )
   limit 1;
-
 
   if v_membro_id is null then
     insert into public.membros_equipe (
@@ -667,11 +832,9 @@ begin
       and me.empresa_id = v_empresa_id;
   end if;
 
-
   return v_membro_id;
 end;
 $function$;
-
 
 grant execute on function public.criar_membro_por_codigo(
   text,
@@ -682,3 +845,74 @@ grant execute on function public.criar_membro_por_codigo(
   text,
   text
 ) to authenticated;
+
+-- =========================================================
+-- Função: atualizar_perfil_acesso_membro
+-- Atualiza perfil de acesso configurável de um membro vinculado
+-- =========================================================
+
+drop function if exists public.atualizar_perfil_acesso_membro(uuid, uuid);
+
+create or replace function public.atualizar_perfil_acesso_membro(
+  p_membro_id uuid,
+  p_perfil_acesso_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $function$
+declare
+  v_empresa_admin uuid;
+  v_usuario_membro uuid;
+  v_perfil_slug text;
+begin
+  select u.empresa_id
+  into v_empresa_admin
+  from public.usuarios u
+  where u.usuario_id = auth.uid()
+    and u.perfil = 'admin'
+  limit 1;
+
+  if v_empresa_admin is null then
+    raise exception 'Apenas administradores podem alterar perfil de acesso.';
+  end if;
+
+  select me.usuario_id
+  into v_usuario_membro
+  from public.membros_equipe me
+  where me.membro_id = p_membro_id
+    and me.empresa_id = v_empresa_admin
+  limit 1;
+
+  if v_usuario_membro is null then
+    raise exception 'Membro não encontrado ou ainda sem usuário vinculado.';
+  end if;
+
+  select pa.slug
+  into v_perfil_slug
+  from public.perfis_acesso pa
+  where pa.perfil_acesso_id = p_perfil_acesso_id
+    and pa.empresa_id = v_empresa_admin
+    and pa.ativo = true
+  limit 1;
+
+  if v_perfil_slug is null then
+    raise exception 'Perfil de acesso não encontrado para esta empresa.';
+  end if;
+
+  update public.usuarios u
+  set
+    perfil_acesso_id = p_perfil_acesso_id,
+    perfil = case
+      when v_perfil_slug = 'admin' then 'admin'
+      when v_perfil_slug = 'operacional' then 'suporte'
+      when v_perfil_slug = 'externo' then 'terceirizado'
+      else coalesce(u.perfil, 'suporte')
+    end
+  where u.usuario_id = v_usuario_membro
+    and u.empresa_id = v_empresa_admin;
+end;
+$function$;
+
+grant execute on function public.atualizar_perfil_acesso_membro(uuid, uuid) to authenticated;
