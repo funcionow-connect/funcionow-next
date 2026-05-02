@@ -1,24 +1,76 @@
 "use client";
+
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+
+type UsuarioEmpresa = {
+  empresa_id: string;
+};
 
 export default function HomePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
-const [password, setPassword] = useState("");
-const handleLogin = async () => {
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const [password, setPassword] = useState("");
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+  const [loading, setLoading] = useState(false);
 
-  window.location.href = "/dashboard";
-};
+  const handleLogin = async () => {
+    if (!email.trim()) {
+      alert("Informe seu e-mail.");
+      return;
+    }
+
+    if (!password.trim()) {
+      alert("Informe sua senha.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      const userId = data.user?.id;
+
+      if (!userId) {
+        alert("Usuário não encontrado após login.");
+        return;
+      }
+
+      const { data: usuarioEmpresa, error: usuarioError } = await supabase
+        .from("usuarios")
+        .select("empresa_id")
+        .eq("usuario_id", userId)
+        .maybeSingle<UsuarioEmpresa>();
+
+      if (usuarioError) {
+        console.error("Erro ao verificar vínculo com empresa:", usuarioError);
+        alert("Não foi possível verificar seu vínculo com empresa.");
+        return;
+      }
+
+      if (usuarioEmpresa?.empresa_id) {
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      window.location.href = "/perfil";
+    } catch (err) {
+      console.error("Erro inesperado no login:", err);
+      alert("Erro de conexão ao fazer login.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main
       style={{
@@ -88,7 +140,7 @@ const handleLogin = async () => {
                 type="email"
                 placeholder="seu@email.com"
                 value={email}
-onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 style={{
                   marginTop: "4px",
                   width: "100%",
@@ -110,12 +162,12 @@ onChange={(e) => setEmail(e.target.value)}
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
-onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   style={{
                     width: "100%",
                     borderRadius: "6px",
                     border: "1px solid #e5e7eb",
-                    padding: "10px 48px 10px 12px",
+                    padding: "10px 64px 10px 12px",
                     fontSize: "14px",
                     boxSizing: "border-box",
                   }}
@@ -141,7 +193,8 @@ onChange={(e) => setPassword(e.target.value)}
             </div>
 
             <button
-            onClick={handleLogin}
+              onClick={handleLogin}
+              disabled={loading}
               style={{
                 width: "100%",
                 borderRadius: "6px",
@@ -151,10 +204,11 @@ onChange={(e) => setPassword(e.target.value)}
                 fontWeight: 500,
                 color: "white",
                 border: "none",
-                cursor: "pointer",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.8 : 1,
               }}
             >
-              Entrar
+              {loading ? "Entrando..." : "Entrar"}
             </button>
 
             <p
@@ -166,8 +220,8 @@ onChange={(e) => setPassword(e.target.value)}
             >
               Não tem uma conta?{" "}
               <a href="/register" style={{ color: "#0d9488", cursor: "pointer" }}>
-  Criar conta
-</a>
+                Criar conta
+              </a>
             </p>
           </div>
         </div>

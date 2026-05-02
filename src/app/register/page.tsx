@@ -1,33 +1,76 @@
 "use client";
+
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type TipoCadastro = "empresa" | "usuario";
+
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [tipoCadastro, setTipoCadastro] = useState<TipoCadastro>("empresa");
+
   const [nome, setNome] = useState("");
   const [empresa, setEmpresa] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleRegister = async () => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          nome,
-          empresa_nome: empresa,
-        },
-      },
-    });
+  const [loading, setLoading] = useState(false);
 
-    if (error) {
-      alert(error.message);
+  const handleRegister = async () => {
+    if (!nome.trim()) {
+      alert("Informe seu nome.");
       return;
     }
 
-    alert("Conta criada com sucesso!");
-    window.location.href = "/dashboard";
+    if (!email.trim()) {
+      alert("Informe seu e-mail.");
+      return;
+    }
+
+    if (!password.trim() || password.length < 6) {
+      alert("Informe uma senha com pelo menos 6 caracteres.");
+      return;
+    }
+
+    if (tipoCadastro === "empresa" && !empresa.trim()) {
+      alert("Informe o nome da empresa.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            tipo_cadastro: tipoCadastro,
+            nome: nome.trim(),
+            empresa_nome: tipoCadastro === "empresa" ? empresa.trim() : null,
+          },
+        },
+      });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      if (tipoCadastro === "empresa") {
+        alert("Conta e empresa criadas com sucesso!");
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      alert("Conta criada com sucesso! Complete seu perfil.");
+      window.location.href = "/perfil";
+    } catch (err) {
+      console.error("Erro inesperado ao criar conta:", err);
+      alert("Erro de conexão ao criar conta.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -35,7 +78,7 @@ export default function RegisterPage() {
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
-        height: "100vh",
+        minHeight: "100vh",
         width: "100%",
       }}
     >
@@ -45,9 +88,10 @@ export default function RegisterPage() {
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-start",
-          paddingTop: "96px",
+          paddingTop: "72px",
           paddingLeft: "24px",
           paddingRight: "24px",
+          paddingBottom: "32px",
         }}
       >
         <div style={{ width: "100%", maxWidth: "380px" }}>
@@ -86,11 +130,49 @@ export default function RegisterPage() {
                 color: "#6b7280",
               }}
             >
-              Comece a gerenciar sua operação agora
+              Escolha como deseja se cadastrar
             </p>
           </div>
 
           <div style={{ marginTop: "24px", display: "grid", gap: "12px" }}>
+            <div>
+              <label style={labelStyle}>Tipo de cadastro</label>
+
+              <div style={tipoCadastroBox}>
+                <button
+                  type="button"
+                  onClick={() => setTipoCadastro("empresa")}
+                  style={{
+                    ...tipoCadastroButton,
+                    ...(tipoCadastro === "empresa"
+                      ? tipoCadastroButtonActive
+                      : {}),
+                  }}
+                >
+                  Empresa
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTipoCadastro("usuario")}
+                  style={{
+                    ...tipoCadastroButton,
+                    ...(tipoCadastro === "usuario"
+                      ? tipoCadastroButtonActive
+                      : {}),
+                  }}
+                >
+                  Usuário / colaborador
+                </button>
+              </div>
+
+              <p style={helperText}>
+                {tipoCadastro === "empresa"
+                  ? "Use esta opção para criar uma nova empresa e entrar como administrador."
+                  : "Use esta opção se você será vinculado depois a uma empresa por código."}
+              </p>
+            </div>
+
             <div>
               <label style={labelStyle}>Seu nome</label>
               <input
@@ -101,15 +183,17 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Nome da empresa</label>
-              <input
-                placeholder="Sua empresa"
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
+            {tipoCadastro === "empresa" && (
+              <div>
+                <label style={labelStyle}>Nome da empresa</label>
+                <input
+                  placeholder="Sua empresa"
+                  value={empresa}
+                  onChange={(e) => setEmpresa(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            )}
 
             <div>
               <label style={labelStyle}>E-mail</label>
@@ -130,7 +214,7 @@ export default function RegisterPage() {
                   placeholder="Mínimo 6 caracteres"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={inputStyle}
+                  style={inputWithButtonStyle}
                 />
                 <button
                   type="button"
@@ -142,8 +226,12 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <button style={buttonStyle} onClick={handleRegister}>
-              Criar conta
+            <button style={buttonStyle} onClick={handleRegister} disabled={loading}>
+              {loading
+                ? "Criando conta..."
+                : tipoCadastro === "empresa"
+                ? "Criar empresa"
+                : "Criar usuário"}
             </button>
 
             <p
@@ -194,13 +282,26 @@ const labelStyle = {
   marginBottom: "4px",
 };
 
+const helperText = {
+  fontSize: "11px",
+  color: "#6b7280",
+  margin: "6px 0 0",
+  lineHeight: 1.4,
+};
+
 const inputStyle = {
   width: "100%",
   borderRadius: "6px",
   border: "1px solid #e5e7eb",
-  padding: "10px 48px 10px 12px",
+  padding: "10px 12px",
   fontSize: "14px",
   boxSizing: "border-box" as const,
+  background: "white",
+};
+
+const inputWithButtonStyle = {
+  ...inputStyle,
+  padding: "10px 64px 10px 12px",
 };
 
 const buttonStyle = {
@@ -211,6 +312,7 @@ const buttonStyle = {
   color: "white",
   border: "none",
   cursor: "pointer",
+  fontWeight: 600,
 };
 
 const showButton = {
@@ -223,4 +325,27 @@ const showButton = {
   background: "transparent",
   border: "none",
   cursor: "pointer",
+};
+
+const tipoCadastroBox = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "8px",
+};
+
+const tipoCadastroButton = {
+  border: "1px solid #e5e7eb",
+  background: "white",
+  color: "#6b7280",
+  borderRadius: "8px",
+  padding: "10px 8px",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const tipoCadastroButtonActive = {
+  background: "#ccfbf1",
+  color: "#0f766e",
+  border: "1px solid #14b8a6",
 };
