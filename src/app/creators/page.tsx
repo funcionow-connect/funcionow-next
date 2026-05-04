@@ -24,6 +24,8 @@ type Creator = {
 
 type UsuarioEmpresa = {
   empresa_id: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
 };
 
 type Categoria = {
@@ -43,6 +45,13 @@ type AreaSpeaker = {
   segmento_id: string;
 };
 
+type PermissaoCreators = {
+  pode_acessar: boolean;
+  pode_criar: boolean;
+  pode_editar: boolean;
+  pode_excluir: boolean;
+};
+
 type ViewMode = "cards" | "kanban" | "lista";
 
 export default function CreatorsPage() {
@@ -51,6 +60,10 @@ export default function CreatorsPage() {
   const [statusFilter, setStatusFilter] = useState("Todos os status");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [loading, setLoading] = useState(true);
+
+  const [podeCriar, setPodeCriar] = useState(false);
+  const [podeEditar, setPodeEditar] = useState(false);
+  const [podeExcluir, setPodeExcluir] = useState(false);
 
   const [openModal, setOpenModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,6 +80,53 @@ export default function CreatorsPage() {
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [areasSpeaker, setAreasSpeaker] = useState<AreaSpeaker[]>([]);
 
+  const setPermissoesFallback = (perfil: string | null) => {
+    if (perfil === "admin") {
+      setPodeCriar(true);
+      setPodeEditar(true);
+      setPodeExcluir(true);
+      return;
+    }
+
+    if (perfil === "suporte") {
+      setPodeCriar(true);
+      setPodeEditar(true);
+      setPodeExcluir(false);
+      return;
+    }
+
+    setPodeCriar(false);
+    setPodeEditar(false);
+    setPodeExcluir(false);
+  };
+
+  const loadPermissoesCreators = async (
+    perfilAcessoId: string | null,
+    perfilLegado: string | null,
+  ) => {
+    if (!perfilAcessoId) {
+      setPermissoesFallback(perfilLegado);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("perfil_acesso_permissoes")
+      .select("pode_acessar, pode_criar, pode_editar, pode_excluir")
+      .eq("perfil_acesso_id", perfilAcessoId)
+      .eq("pagina_key", "creators")
+      .maybeSingle<PermissaoCreators>();
+
+    if (error) {
+      console.error("Erro ao buscar permissões de creators:", error);
+      setPermissoesFallback(perfilLegado);
+      return;
+    }
+
+    setPodeCriar(Boolean(data?.pode_criar));
+    setPodeEditar(Boolean(data?.pode_editar));
+    setPodeExcluir(Boolean(data?.pode_excluir));
+  };
+
   const loadCreators = async () => {
     setLoading(true);
 
@@ -82,7 +142,7 @@ export default function CreatorsPage() {
 
     const { data: usuario, error: usuarioError } = await supabase
       .from("usuarios")
-      .select("empresa_id")
+      .select("empresa_id, perfil, perfil_acesso_id")
       .eq("usuario_id", session.user.id)
       .single<UsuarioEmpresa>();
 
@@ -94,13 +154,14 @@ export default function CreatorsPage() {
     }
 
     setEmpresaId(usuario.empresa_id);
+    await loadPermissoesCreators(usuario.perfil_acesso_id, usuario.perfil);
 
     const [creatorsRes, categoriasRes, segmentosRes, areasRes] =
       await Promise.all([
         supabase
           .from("v_creator_detalhe")
           .select(
-            "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento"
+            "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento",
           )
           .eq("empresa_id", usuario.empresa_id)
           .order("criado_em", { ascending: false }),
@@ -188,12 +249,26 @@ export default function CreatorsPage() {
     setAreaSpeakerId("");
   };
 
+  const handleOpenModal = () => {
+    if (!podeCriar) {
+      alert("Você não tem permissão para cadastrar creator.");
+      return;
+    }
+
+    setOpenModal(true);
+  };
+
   const handleCloseModal = () => {
     resetModalFields();
     setOpenModal(false);
   };
 
   const handleCreateCreator = async () => {
+    if (!podeCriar) {
+      alert("Você não tem permissão para cadastrar creator.");
+      return;
+    }
+
     if (!nome.trim() || !instagram.trim()) {
       alert("Preencha nome e instagram.");
       return;
@@ -281,7 +356,7 @@ export default function CreatorsPage() {
 
   const statuses = useMemo(() => {
     const unique = Array.from(
-      new Set(creators.map((c) => c.status || "em_analise").filter(Boolean))
+      new Set(creators.map((c) => c.status || "em_analise").filter(Boolean)),
     ) as string[];
 
     return ["Todos os status", ...unique];
@@ -395,6 +470,52 @@ export default function CreatorsPage() {
         ? "#1d4ed8"
         : "#854d0e",
   });
+
+  const renderActionLinks = (creatorId: string) => {
+    return (
+      <>
+        <a
+          href={`/creators/detail?creator_id=${creatorId}`}
+          style={{
+            fontSize: "11px",
+            color: "#0f766e",
+            fontWeight: 700,
+            textDecoration: "none",
+          }}
+        >
+          Ver detalhes
+        </a>
+
+        {podeEditar && (
+          <a
+            href={`/creators/avaliar?creator_id=${creatorId}`}
+            style={{
+              fontSize: "11px",
+              color: "#1d4ed8",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Avaliar
+          </a>
+        )}
+
+        {podeEditar && (
+          <a
+            href={`/creators/edit?creator_id=${creatorId}`}
+            style={{
+              fontSize: "11px",
+              color: "#0f766e",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Editar
+          </a>
+        )}
+      </>
+    );
+  };
 
   const renderCreatorCard = (c: Creator) => {
     const score = getScore(c);
@@ -527,41 +648,7 @@ export default function CreatorsPage() {
           <div style={statusBadgeStyle(c.status)}>{formatStatus(c.status)}</div>
 
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <a
-              href={`/creators/detail?creator_id=${c.creator_id}`}
-              style={{
-                fontSize: "11px",
-                color: "#0f766e",
-                fontWeight: 700,
-                textDecoration: "none",
-              }}
-            >
-              Ver detalhes
-            </a>
-
-            <a
-              href={`/creators/avaliar?creator_id=${c.creator_id}`}
-              style={{
-                fontSize: "11px",
-                color: "#1d4ed8",
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
-              Avaliar
-            </a>
-
-            <a
-              href={`/creators/edit?creator_id=${c.creator_id}`}
-              style={{
-                fontSize: "11px",
-                color: "#0f766e",
-                fontWeight: 600,
-                textDecoration: "none",
-              }}
-            >
-              Editar
-            </a>
+            {renderActionLinks(c.creator_id)}
           </div>
         </div>
       </div>
@@ -604,23 +691,25 @@ export default function CreatorsPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setOpenModal(true)}
-            style={{
-              background: "linear-gradient(to right, #0f766e, #14b8a6)",
-              color: "white",
-              border: "none",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: 600,
-              boxShadow: "0 4px 10px rgba(20, 184, 166, 0.18)",
-              display: "inline-block",
-            }}
-          >
-            + Novo Creator
-          </button>
+          {podeCriar && (
+            <button
+              onClick={handleOpenModal}
+              style={{
+                background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                color: "white",
+                border: "none",
+                padding: "10px 16px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 600,
+                boxShadow: "0 4px 10px rgba(20, 184, 166, 0.18)",
+                display: "inline-block",
+              }}
+            >
+              + Novo Creator
+            </button>
+          )}
         </div>
 
         <div
@@ -728,7 +817,7 @@ export default function CreatorsPage() {
           >
             {kanbanColumns.map((column) => {
               const items = filteredCreators.filter(
-                (creator) => (creator.status || "em_analise") === column.key
+                (creator) => (creator.status || "em_analise") === column.key,
               );
 
               return (
@@ -844,17 +933,19 @@ export default function CreatorsPage() {
                                 Ver
                               </a>
 
-                              <a
-                                href={`/creators/avaliar?creator_id=${creator.creator_id}`}
-                                style={{
-                                  fontSize: "11px",
-                                  color: "#1d4ed8",
-                                  fontWeight: 600,
-                                  textDecoration: "none",
-                                }}
-                              >
-                                Avaliar
-                              </a>
+                              {podeEditar && (
+                                <a
+                                  href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#1d4ed8",
+                                    fontWeight: 600,
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  Avaliar
+                                </a>
+                              )}
                             </div>
                           </div>
                         );
@@ -918,18 +1009,24 @@ export default function CreatorsPage() {
                     >
                       Ver
                     </a>
-                    <a
-                      href={`/creators/avaliar?creator_id=${creator.creator_id}`}
-                      style={tableLinkBlue}
-                    >
-                      Avaliar
-                    </a>
-                    <a
-                      href={`/creators/edit?creator_id=${creator.creator_id}`}
-                      style={tableLinkPrimary}
-                    >
-                      Editar
-                    </a>
+
+                    {podeEditar && (
+                      <a
+                        href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+                        style={tableLinkBlue}
+                      >
+                        Avaliar
+                      </a>
+                    )}
+
+                    {podeEditar && (
+                      <a
+                        href={`/creators/edit?creator_id=${creator.creator_id}`}
+                        style={tableLinkPrimary}
+                      >
+                        Editar
+                      </a>
+                    )}
                   </div>
                 </div>
               );
