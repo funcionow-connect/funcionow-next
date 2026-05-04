@@ -91,7 +91,7 @@ begin
   values
     (
       nova_empresa_id,
-      'Admin',
+      'Administrador',
       'admin',
       'Acesso total à plataforma.',
       true,
@@ -99,7 +99,7 @@ begin
     ),
     (
       nova_empresa_id,
-      'Operacional',
+      'Gestor',
       'operacional',
       'Acesso às rotinas operacionais de creators, avaliações e campanhas.',
       false,
@@ -107,7 +107,7 @@ begin
     ),
     (
       nova_empresa_id,
-      'Externo',
+      'Colaborador externo',
       'externo',
       'Acesso limitado para terceirizados ou usuários externos.',
       false,
