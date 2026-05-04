@@ -184,12 +184,35 @@ export default function AppLayout({
           nomePerfil = formatPerfilAntigo(usuario.perfil);
         }
 
+const jaTemPerfil = itensPermitidos.some((item) => item.href === "/perfil");
+
+
+if (!jaTemPerfil) {
+  itensPermitidos.push({
+    label: "Meu Perfil",
+    href: "/perfil",
+    match: "/perfil",
+    ordem: 99,
+  });
+
+
+  itensPermitidos.sort((a, b) => a.ordem - b.ordem);
+}
+
+
         setMenuItems(itensPermitidos);
         setPerfilAcessoNome(nomePerfil);
 
-        const rotaPermitida = itensPermitidos.some((item) => {
-          return pathname === item.href || pathname.startsWith(`${item.match}/`);
-        });
+        const rotaPerfil =
+  pathname === "/perfil" || pathname.startsWith("/perfil/");
+
+
+const rotaPermitida =
+  rotaPerfil ||
+  itensPermitidos.some((item) => {
+    return pathname === item.href || pathname.startsWith(`${item.match}/`);
+  });
+
 
         if (!rotaPermitida) {
           const rotaDestino =
@@ -391,11 +414,12 @@ const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
 };
 
 const formatPerfilAntigo = (perfil: string | null) => {
-  if (perfil === "admin") return "Admin";
-  if (perfil === "suporte") return "Operacional";
-  if (perfil === "terceirizado") return "Externo";
+  if (perfil === "admin") return "Administrador";
+  if (perfil === "suporte") return "Gestor";
+  if (perfil === "terceirizado") return "Colaborador externo";
   return "Não definido";
 };
+
 
 const navItemStyle = {
   padding: "10px 12px",
