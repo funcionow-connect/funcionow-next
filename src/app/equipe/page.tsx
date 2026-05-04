@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioEmpresa = {
   empresa_id: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
 };
 
 type MembroEquipe = {
@@ -65,12 +67,23 @@ type PerfilAcessoOption = {
   ativo: boolean;
 };
 
+type PermissaoEquipe = {
+  pode_acessar: boolean;
+  pode_criar: boolean;
+  pode_editar: boolean;
+  pode_excluir: boolean;
+};
+
 export default function EquipePage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [membros, setMembros] = useState<MembroEquipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
+
+  const [podeCriar, setPodeCriar] = useState(false);
+  const [podeEditar, setPodeEditar] = useState(false);
+  const [podeExcluir, setPodeExcluir] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState("Todos");
@@ -211,6 +224,41 @@ export default function EquipePage() {
     return perfil?.nome || "-";
   };
 
+  const setPermissoesFallback = (perfil: string | null) => {
+    const isAdmin = perfil === "admin";
+
+    setPodeCriar(isAdmin);
+    setPodeEditar(isAdmin);
+    setPodeExcluir(isAdmin);
+  };
+
+  const loadPermissoesEquipe = async (
+    perfilAcessoId: string | null,
+    perfilLegado: string | null,
+  ) => {
+    if (!perfilAcessoId) {
+      setPermissoesFallback(perfilLegado);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("perfil_acesso_permissoes")
+      .select("pode_acessar, pode_criar, pode_editar, pode_excluir")
+      .eq("perfil_acesso_id", perfilAcessoId)
+      .eq("pagina_key", "equipe")
+      .maybeSingle<PermissaoEquipe>();
+
+    if (error) {
+      console.error("Erro ao buscar permissões da equipe:", error);
+      setPermissoesFallback(perfilLegado);
+      return;
+    }
+
+    setPodeCriar(Boolean(data?.pode_criar));
+    setPodeEditar(Boolean(data?.pode_editar));
+    setPodeExcluir(Boolean(data?.pode_excluir));
+  };
+
   const loadPage = async () => {
     try {
       setLoading(true);
@@ -227,7 +275,7 @@ export default function EquipePage() {
 
       const { data: usuario, error: usuarioError } = await supabase
         .from("usuarios")
-        .select("empresa_id")
+        .select("empresa_id, perfil, perfil_acesso_id")
         .eq("usuario_id", session.user.id)
         .single<UsuarioEmpresa>();
 
@@ -239,6 +287,8 @@ export default function EquipePage() {
       }
 
       setEmpresaId(usuario.empresa_id);
+
+      await loadPermissoesEquipe(usuario.perfil_acesso_id, usuario.perfil);
 
       const { data: perfisData, error: perfisError } = await supabase
         .from("perfis_acesso")
@@ -322,6 +372,11 @@ export default function EquipePage() {
   };
 
   const handleOpenVincularModal = () => {
+    if (!podeCriar) {
+      alert("Você não tem permissão para criar vínculos na equipe.");
+      return;
+    }
+
     resetVincularModal();
     setOpenVincularModal(true);
   };
@@ -371,6 +426,11 @@ export default function EquipePage() {
   };
 
   const handleCriarMembroPorCodigo = async () => {
+    if (!podeCriar) {
+      alert("Você não tem permissão para criar vínculos na equipe.");
+      return;
+    }
+
     if (!perfilEncontrado) {
       alert("Busque um perfil antes de vincular.");
       return;
@@ -413,6 +473,11 @@ export default function EquipePage() {
   };
 
   const handleOpenCreateModal = () => {
+    if (!podeCriar) {
+      alert("Você não tem permissão para cadastrar membros.");
+      return;
+    }
+
     resetForm();
     setOpenModal(true);
   };
@@ -457,12 +522,22 @@ export default function EquipePage() {
   const handleEditFromDetail = () => {
     if (!selectedMembro) return;
 
+    if (!podeEditar) {
+      alert("Você não tem permissão para editar membros.");
+      return;
+    }
+
     const membroParaEditar = selectedMembro;
     setSelectedMembro(null);
     handleOpenEditModal(membroParaEditar);
   };
 
   const handleAtualizarPerfilAcesso = async () => {
+    if (!podeEditar) {
+      alert("Você não tem permissão para alterar perfil de acesso.");
+      return;
+    }
+
     if (!selectedMembro) return;
 
     if (!selectedMembro.usuario_id) {
@@ -502,6 +577,11 @@ export default function EquipePage() {
   };
 
   const handleVincularUsuario = async () => {
+    if (!podeEditar) {
+      alert("Você não tem permissão para vincular usuário a membro existente.");
+      return;
+    }
+
     if (!selectedMembro) return;
 
     if (!codigoVinculo.trim()) {
@@ -559,13 +639,14 @@ export default function EquipePage() {
   };
 
   const handleOpenEditModal = (membro: MembroEquipe) => {
+    if (!podeEditar) {
+      alert("Você não tem permissão para editar membros.");
+      return;
+    }
+
     setEditingMembroId(membro.membro_id);
     setNome(membro.nome || "");
-    setTipoMembro(
-      membro.tipo_membro === "parceiro"
-        ? "terceirizado"
-        : membro.tipo_membro || "colaborador",
-    );
+    setTipoMembro(membro.tipo_membro || "colaborador");
     setCargo(membro.cargo || "");
     setStatus(membro.status || "ativo");
     setEmail(membro.email || "");
@@ -707,6 +788,16 @@ export default function EquipePage() {
   };
 
   const handleSaveMembro = async () => {
+    if (editingMembroId && !podeEditar) {
+      alert("Você não tem permissão para editar membros.");
+      return;
+    }
+
+    if (!editingMembroId && !podeCriar) {
+      alert("Você não tem permissão para cadastrar membros.");
+      return;
+    }
+
     if (!validateForm()) return;
 
     try {
@@ -754,8 +845,7 @@ export default function EquipePage() {
     return membros.filter((membro) => {
       const term = search.toLowerCase();
 
-      const tipoNormalizado =
-        membro.tipo_membro === "parceiro" ? "terceirizado" : membro.tipo_membro;
+      const tipoNormalizado = membro.tipo_membro;
 
       const matchesSearch =
         !term ||
@@ -788,7 +878,7 @@ export default function EquipePage() {
 
   const formatTipoMembro = (value: string) => {
     if (value === "colaborador") return "Colaborador";
-    if (value === "terceirizado" || value === "parceiro") return "Terceirizado";
+    if (value === "terceirizado") return "Terceirizado";
     return value;
   };
 
@@ -811,15 +901,17 @@ export default function EquipePage() {
             </p>
           </div>
 
-          <div style={headerActions}>
-            <button onClick={handleOpenVincularModal} style={primaryButton}>
-              + Vincular usuário
-            </button>
+          {podeCriar && (
+            <div style={headerActions}>
+              <button onClick={handleOpenVincularModal} style={primaryButton}>
+                + Vincular usuário
+              </button>
 
-            <button onClick={handleOpenCreateModal} style={secondaryButton}>
-              Cadastrar manualmente
-            </button>
-          </div>
+              <button onClick={handleOpenCreateModal} style={secondaryButton}>
+                Cadastrar manualmente
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={filtersRow}>
@@ -921,13 +1013,15 @@ export default function EquipePage() {
                     Ver
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditModal(membro)}
-                    style={editButton}
-                  >
-                    Editar
-                  </button>
+                  {podeEditar && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(membro)}
+                      style={editButton}
+                    >
+                      Editar
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -1243,101 +1337,115 @@ export default function EquipePage() {
                     Este membro já está vinculado a um usuário do sistema.
                   </div>
 
-                  <div style={{ marginTop: "12px" }}>
-                    <label style={labelStyle}>Perfil de acesso atual</label>
+                  {podeEditar ? (
+                    <div style={{ marginTop: "12px" }}>
+                      <label style={labelStyle}>Perfil de acesso atual</label>
 
-                    <div style={modalGrid}>
-                      <div>
-                        <select
-                          value={perfilAcessoEditId}
-                          onChange={(e) =>
-                            setPerfilAcessoEditId(e.target.value)
-                          }
-                          style={inputStyle}
-                        >
-                          {perfisAcesso.map((perfil) => (
-                            <option
-                              key={perfil.perfil_acesso_id}
-                              value={perfil.perfil_acesso_id}
-                            >
-                              {perfil.nome}
-                            </option>
-                          ))}
-                        </select>
+                      <div style={modalGrid}>
+                        <div>
+                          <select
+                            value={perfilAcessoEditId}
+                            onChange={(e) =>
+                              setPerfilAcessoEditId(e.target.value)
+                            }
+                            style={inputStyle}
+                          >
+                            {perfisAcesso.map((perfil) => (
+                              <option
+                                key={perfil.perfil_acesso_id}
+                                value={perfil.perfil_acesso_id}
+                              >
+                                {perfil.nome}
+                              </option>
+                            ))}
+                          </select>
 
-                        <div style={helperText}>
-                          Atual:{" "}
-                          {getNomePerfilAcesso(
-                            perfilAcessoAtualId || perfilAcessoEditId,
-                          )}
+                          <div style={helperText}>
+                            Atual:{" "}
+                            {getNomePerfilAcesso(
+                              perfilAcessoAtualId || perfilAcessoEditId,
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "flex-start" }}>
+                          <button
+                            type="button"
+                            onClick={handleAtualizarPerfilAcesso}
+                            disabled={
+                              savingPerfilAcesso ||
+                              perfilAcessoEditId === perfilAcessoAtualId
+                            }
+                            style={primaryButton}
+                          >
+                            {savingPerfilAcesso
+                              ? "Salvando..."
+                              : "Salvar perfil de acesso"}
+                          </button>
                         </div>
                       </div>
-
-                      <div style={{ display: "flex", alignItems: "flex-start" }}>
-                        <button
-                          type="button"
-                          onClick={handleAtualizarPerfilAcesso}
-                          disabled={
-                            savingPerfilAcesso ||
-                            perfilAcessoEditId === perfilAcessoAtualId
-                          }
-                          style={primaryButton}
-                        >
-                          {savingPerfilAcesso
-                            ? "Salvando..."
-                            : "Salvar perfil de acesso"}
-                        </button>
-                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div style={readOnlyInfoBox}>
+                      Você não tem permissão para alterar o perfil de acesso.
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div style={linkAccessBox}>
-                  <div style={modalGrid}>
-                    <div>
-                      <label style={labelStyle}>Código de vínculo</label>
-                      <input
-                        value={codigoVinculo}
-                        onChange={(e) =>
-                          setCodigoVinculo(e.target.value.toUpperCase())
-                        }
-                        placeholder="Ex: 57E7DD5F"
-                        style={inputStyle}
-                      />
-                      <div style={helperText}>
-                        Código gerado no perfil do usuário cadastrado.
-                      </div>
-                    </div>
+                  {podeEditar ? (
+                    <>
+                      <div style={modalGrid}>
+                        <div>
+                          <label style={labelStyle}>Código de vínculo</label>
+                          <input
+                            value={codigoVinculo}
+                            onChange={(e) =>
+                              setCodigoVinculo(e.target.value.toUpperCase())
+                            }
+                            placeholder="Ex: 57E7DD5F"
+                            style={inputStyle}
+                          />
+                          <div style={helperText}>
+                            Código gerado no perfil do usuário cadastrado.
+                          </div>
+                        </div>
 
-                    <div>
-                      <label style={labelStyle}>Perfil de acesso</label>
-                      <select
-                        value={perfilVinculoId}
-                        onChange={(e) => setPerfilVinculoId(e.target.value)}
-                        style={inputStyle}
-                      >
-                        {perfisAcesso.map((perfil) => (
-                          <option
-                            key={perfil.perfil_acesso_id}
-                            value={perfil.perfil_acesso_id}
+                        <div>
+                          <label style={labelStyle}>Perfil de acesso</label>
+                          <select
+                            value={perfilVinculoId}
+                            onChange={(e) => setPerfilVinculoId(e.target.value)}
+                            style={inputStyle}
                           >
-                            {perfil.nome}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                            {perfisAcesso.map((perfil) => (
+                              <option
+                                key={perfil.perfil_acesso_id}
+                                value={perfil.perfil_acesso_id}
+                              >
+                                {perfil.nome}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
 
-                  <div style={{ marginTop: "10px" }}>
-                    <button
-                      type="button"
-                      onClick={handleVincularUsuario}
-                      disabled={linkingUser}
-                      style={primaryButton}
-                    >
-                      {linkingUser ? "Vinculando..." : "Vincular usuário"}
-                    </button>
-                  </div>
+                      <div style={{ marginTop: "10px" }}>
+                        <button
+                          type="button"
+                          onClick={handleVincularUsuario}
+                          disabled={linkingUser}
+                          style={primaryButton}
+                        >
+                          {linkingUser ? "Vinculando..." : "Vincular usuário"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={readOnlyInfoBox}>
+                      Este membro ainda não possui acesso ao sistema.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1349,9 +1457,11 @@ export default function EquipePage() {
                   Fechar
                 </button>
 
-                <button onClick={handleEditFromDetail} style={primaryButton}>
-                  Editar membro
-                </button>
+                {podeEditar && (
+                  <button onClick={handleEditFromDetail} style={primaryButton}>
+                    Editar membro
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1626,7 +1736,7 @@ export default function EquipePage() {
 }
 
 function tipoBadge(tipo: string) {
-  if (tipo === "terceirizado" || tipo === "parceiro") {
+  if (tipo === "terceirizado") {
     return {
       background: "#fef3c7",
       color: "#92400e",
@@ -1705,6 +1815,16 @@ const perfilPreviewBox = {
   display: "flex",
   gap: "12px",
   alignItems: "center",
+};
+
+const readOnlyInfoBox = {
+  marginTop: "10px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  color: "#6b7280",
+  borderRadius: "10px",
+  padding: "10px 12px",
+  fontSize: "12px",
 };
 
 const pageHeader = {
@@ -2043,3 +2163,4 @@ const modalFooter = {
   gap: "10px",
   marginTop: "16px",
 };
+
