@@ -7,6 +7,15 @@ import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioEmpresa = {
   empresa_id: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
+};
+
+type PermissaoCreators = {
+  pode_acessar: boolean;
+  pode_criar: boolean;
+  pode_editar: boolean;
+  pode_excluir: boolean;
 };
 
 type ScoreFitItem = {
@@ -91,6 +100,29 @@ function AvaliarCreatorContent() {
   const [observacoes, setObservacoes] = useState("");
   const [respostas, setRespostas] = useState<Record<string, RespostaState>>({});
 
+  const usuarioTemPermissaoEditar = async (
+    perfilAcessoId: string | null,
+    perfilLegado: string | null,
+  ) => {
+    if (!perfilAcessoId) {
+      return perfilLegado === "admin" || perfilLegado === "suporte";
+    }
+
+    const { data, error } = await supabase
+      .from("perfil_acesso_permissoes")
+      .select("pode_acessar, pode_editar")
+      .eq("perfil_acesso_id", perfilAcessoId)
+      .eq("pagina_key", "creators")
+      .maybeSingle<Pick<PermissaoCreators, "pode_acessar" | "pode_editar">>();
+
+    if (error) {
+      console.error("Erro ao buscar permissão de avaliação:", error);
+      return perfilLegado === "admin" || perfilLegado === "suporte";
+    }
+
+    return Boolean(data?.pode_acessar && data?.pode_editar);
+  };
+
   useEffect(() => {
     const loadPage = async () => {
       try {
@@ -100,20 +132,36 @@ function AvaliarCreatorContent() {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (!session?.user || !creatorId) {
-          setLoading(false);
+        if (!session?.user) {
+          router.push("/");
+          return;
+        }
+
+        if (!creatorId) {
+          router.push("/creators");
           return;
         }
 
         const { data: usuario, error: usuarioError } = await supabase
           .from("usuarios")
-          .select("empresa_id")
+          .select("empresa_id, perfil, perfil_acesso_id")
           .eq("usuario_id", session.user.id)
           .single<UsuarioEmpresa>();
 
         if (usuarioError || !usuario?.empresa_id) {
           console.error("Erro ao buscar empresa do usuário:", usuarioError);
-          setLoading(false);
+          router.push("/perfil");
+          return;
+        }
+
+        const temPermissaoEditar = await usuarioTemPermissaoEditar(
+          usuario.perfil_acesso_id,
+          usuario.perfil,
+        );
+
+        if (!temPermissaoEditar) {
+          alert("Você não tem permissão para avaliar creators.");
+          router.push(`/creators/detail?creator_id=${creatorId}`);
           return;
         }
 
@@ -123,7 +171,7 @@ function AvaliarCreatorContent() {
           supabase
             .from("v_creator_detalhe")
             .select(
-              "creator_id, empresa_id, nome, instagram, categoria_nome, segmento_nome, area_speaker_nome, status, score_parcial, observacoes, avaliacao_id, etapa_id, score_fit_detalhes"
+              "creator_id, empresa_id, nome, instagram, categoria_nome, segmento_nome, area_speaker_nome, status, score_parcial, observacoes, avaliacao_id, etapa_id, score_fit_detalhes",
             )
             .eq("creator_id", creatorId)
             .eq("empresa_id", usuario.empresa_id)
@@ -218,12 +266,12 @@ function AvaliarCreatorContent() {
     };
 
     setTimeout(loadPage, 300);
-  }, [creatorId]);
+  }, [creatorId, router]);
 
   const calcularPontuacao = (
     tipoResposta: string | null,
     peso: number | null,
-    valor: string
+    valor: string,
   ) => {
     const pesoFinal = peso ?? 1;
 
@@ -244,7 +292,7 @@ function AvaliarCreatorContent() {
     criterioId: string,
     tipoResposta: string | null,
     peso: number | null,
-    valor: string
+    valor: string,
   ) => {
     setRespostas((prev) => ({
       ...prev,
@@ -259,13 +307,13 @@ function AvaliarCreatorContent() {
     return Number(
       Object.values(respostas)
         .reduce((acc, item) => acc + (item.pontuacao || 0), 0)
-        .toFixed(2)
+        .toFixed(2),
     );
   }, [respostas]);
 
   const pesoMaximo = useMemo(() => {
     return Number(
-      criterios.reduce((acc, criterio) => acc + (criterio.peso ?? 0), 0).toFixed(2)
+      criterios.reduce((acc, criterio) => acc + (criterio.peso ?? 0), 0).toFixed(2),
     );
   }, [criterios]);
 
@@ -275,21 +323,21 @@ function AvaliarCreatorContent() {
   }, [pontuacaoBruta, pesoMaximo]);
 
   const statusPrevisto = useMemo(() => {
-  if (!configFunil) return "reprovado";
+    if (!configFunil) return "reprovado";
 
-  if (notaPrevista >= configFunil.min_score_aprovacao) {
-    return "aprovado";
-  }
+    if (notaPrevista >= configFunil.min_score_aprovacao) {
+      return "aprovado";
+    }
 
-  if (
-    configFunil.permitir_potencial &&
-    notaPrevista >= configFunil.min_score_potencial
-  ) {
-    return "potencial";
-  }
+    if (
+      configFunil.permitir_potencial &&
+      notaPrevista >= configFunil.min_score_potencial
+    ) {
+      return "potencial";
+    }
 
-  return "reprovado";
-}, [notaPrevista, configFunil]);
+    return "reprovado";
+  }, [notaPrevista, configFunil]);
 
   const handleSalvar = async () => {
     try {
@@ -321,9 +369,10 @@ function AvaliarCreatorContent() {
       });
 
       if (!["aprovado", "potencial", "reprovado"].includes(statusPrevisto)) {
-  alert("Status da avaliação inválido.");
-  return;
-}
+        alert("Status da avaliação inválido.");
+        return;
+      }
+
       setSaving(true);
 
       const { error } = await supabase.rpc("salvar_avaliacao_creator", {
@@ -458,18 +507,18 @@ function AvaliarCreatorContent() {
                   statusPrevisto === "aprovado"
                     ? "#dcfce7"
                     : statusPrevisto === "reprovado"
-                    ? "#fee2e2"
-                    : statusPrevisto === "potencial"
-                    ? "#dbeafe"
-                    : "#fef9c3",
+                      ? "#fee2e2"
+                      : statusPrevisto === "potencial"
+                        ? "#dbeafe"
+                        : "#fef9c3",
                 color:
                   statusPrevisto === "aprovado"
                     ? "#166534"
                     : statusPrevisto === "reprovado"
-                    ? "#991b1b"
-                    : statusPrevisto === "potencial"
-                    ? "#1d4ed8"
-                    : "#854d0e",
+                      ? "#991b1b"
+                      : statusPrevisto === "potencial"
+                        ? "#1d4ed8"
+                        : "#854d0e",
                 fontWeight: 600,
               }}
             >
@@ -550,8 +599,8 @@ function AvaliarCreatorContent() {
                           {criterio.tipo_resposta === "sim_nao"
                             ? "Sim / Não"
                             : criterio.tipo_resposta === "escala"
-                            ? "Escala"
-                            : criterio.tipo_resposta ?? "-"}
+                              ? "Escala"
+                              : criterio.tipo_resposta ?? "-"}
                         </span>
                       </div>
                     </div>
@@ -565,7 +614,7 @@ function AvaliarCreatorContent() {
                               criterio.criterio_id,
                               criterio.tipo_resposta,
                               criterio.peso,
-                              "sim"
+                              "sim",
                             )
                           }
                           style={{
@@ -585,7 +634,7 @@ function AvaliarCreatorContent() {
                               criterio.criterio_id,
                               criterio.tipo_resposta,
                               criterio.peso,
-                              "nao"
+                              "nao",
                             )
                           }
                           style={{
@@ -618,7 +667,7 @@ function AvaliarCreatorContent() {
                               criterio.criterio_id,
                               criterio.tipo_resposta,
                               criterio.peso,
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           style={selectInput}
