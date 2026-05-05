@@ -1,12 +1,19 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioEmpresa = {
   empresa_id: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
+};
+
+type PermissaoCreators = {
+  pode_acessar: boolean;
+  pode_editar: boolean;
 };
 
 type ConfiguracaoFunil = {
@@ -65,6 +72,7 @@ export default function CreatorDetailPage() {
 }
 
 function CreatorDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const creatorId = searchParams.get("creator_id");
 
@@ -72,73 +80,134 @@ function CreatorDetailContent() {
   const [loading, setLoading] = useState(true);
   const [minScoreAprovacao, setMinScoreAprovacao] = useState(7);
   const [minScorePotencial, setMinScorePotencial] = useState(5);
+  const [podeEditarCreators, setPodeEditarCreators] = useState(false);
+
+  const buscarPermissaoCreators = async (
+    perfilAcessoId: string | null,
+    perfilLegado: string | null,
+  ) => {
+    if (!perfilAcessoId) {
+      return {
+        pode_acessar:
+          perfilLegado === "admin" ||
+          perfilLegado === "suporte" ||
+          perfilLegado === "terceirizado",
+        pode_editar: perfilLegado === "admin" || perfilLegado === "suporte",
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("perfil_acesso_permissoes")
+      .select("pode_acessar, pode_editar")
+      .eq("perfil_acesso_id", perfilAcessoId)
+      .eq("pagina_key", "creators")
+      .maybeSingle<PermissaoCreators>();
+
+    if (error) {
+      console.error("Erro ao buscar permissão do detalhe:", error);
+
+      return {
+        pode_acessar:
+          perfilLegado === "admin" ||
+          perfilLegado === "suporte" ||
+          perfilLegado === "terceirizado",
+        pode_editar: perfilLegado === "admin" || perfilLegado === "suporte",
+      };
+    }
+
+    return {
+      pode_acessar: Boolean(data?.pode_acessar),
+      pode_editar: Boolean(data?.pode_acessar && data?.pode_editar),
+    };
+  };
 
   useEffect(() => {
     const loadCreator = async () => {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session?.user || !creatorId) {
-        setCreator(null);
+        if (!session?.user) {
+          router.push("/");
+          return;
+        }
+
+        if (!creatorId) {
+          router.push("/creators");
+          return;
+        }
+
+        const { data: usuario, error: usuarioError } = await supabase
+          .from("usuarios")
+          .select("empresa_id, perfil, perfil_acesso_id")
+          .eq("usuario_id", session.user.id)
+          .single<UsuarioEmpresa>();
+
+        if (usuarioError || !usuario?.empresa_id) {
+          console.error("Erro ao buscar empresa do usuário:", usuarioError);
+          router.push("/perfil");
+          return;
+        }
+
+        const permissao = await buscarPermissaoCreators(
+          usuario.perfil_acesso_id,
+          usuario.perfil,
+        );
+
+        if (!permissao.pode_acessar) {
+          alert("Você não tem permissão para acessar creators.");
+          router.push("/dashboard");
+          return;
+        }
+
+        setPodeEditarCreators(permissao.pode_editar);
+
+        const [creatorRes, configRes] = await Promise.all([
+          supabase
+            .from("v_creator_detalhe")
+            .select("*")
+            .eq("creator_id", creatorId)
+            .eq("empresa_id", usuario.empresa_id)
+            .single(),
+
+          supabase
+            .from("configuracoes_funil")
+            .select("min_score_aprovacao, min_score_potencial")
+            .eq("empresa_id", usuario.empresa_id)
+            .maybeSingle<ConfiguracaoFunil>(),
+        ]);
+
+        if (creatorRes.error) {
+          console.error("Erro ao buscar detalhe do creator:", creatorRes.error);
+          setCreator(null);
+        } else {
+          setCreator(creatorRes.data as CreatorDetalhe);
+        }
+
+        if (configRes.error) {
+          console.error("Erro ao buscar configurações do funil:", configRes.error);
+          setMinScoreAprovacao(7);
+          setMinScorePotencial(5);
+        } else if (configRes.data) {
+          setMinScoreAprovacao(Number(configRes.data.min_score_aprovacao ?? 7));
+          setMinScorePotencial(Number(configRes.data.min_score_potencial ?? 5));
+        } else {
+          setMinScoreAprovacao(7);
+          setMinScorePotencial(5);
+        }
+      } catch (err) {
+        console.error("Erro inesperado ao carregar detalhe:", err);
+        alert("Erro de conexão ao carregar detalhe.");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data: usuario, error: usuarioError } = await supabase
-        .from("usuarios")
-        .select("empresa_id")
-        .eq("usuario_id", session.user.id)
-        .single<UsuarioEmpresa>();
-
-      if (usuarioError || !usuario?.empresa_id) {
-        console.error("Erro ao buscar empresa do usuário:", usuarioError);
-        setCreator(null);
-        setLoading(false);
-        return;
-      }
-
-      const [creatorRes, configRes] = await Promise.all([
-        supabase
-          .from("v_creator_detalhe")
-          .select("*")
-          .eq("creator_id", creatorId)
-          .eq("empresa_id", usuario.empresa_id)
-          .single(),
-
-        supabase
-          .from("configuracoes_funil")
-          .select("min_score_aprovacao, min_score_potencial")
-          .eq("empresa_id", usuario.empresa_id)
-          .maybeSingle<ConfiguracaoFunil>(),
-      ]);
-
-      if (creatorRes.error) {
-        console.error("Erro ao buscar detalhe do creator:", creatorRes.error);
-        setCreator(null);
-      } else {
-        setCreator(creatorRes.data as CreatorDetalhe);
-      }
-
-      if (configRes.error) {
-        console.error("Erro ao buscar configurações do funil:", configRes.error);
-        setMinScoreAprovacao(7);
-        setMinScorePotencial(5);
-      } else if (configRes.data) {
-        setMinScoreAprovacao(Number(configRes.data.min_score_aprovacao ?? 7));
-        setMinScorePotencial(Number(configRes.data.min_score_potencial ?? 5));
-      } else {
-        setMinScoreAprovacao(7);
-        setMinScorePotencial(5);
-      }
-
-      setLoading(false);
     };
 
     setTimeout(loadCreator, 300);
-  }, [creatorId]);
+  }, [creatorId, router]);
 
   if (loading) {
     return (
@@ -162,16 +231,16 @@ function CreatorDetailContent() {
     creator.score_parcial !== null && creator.score_parcial !== undefined
       ? Number(creator.score_parcial)
       : creator.score_total !== null && creator.score_total !== undefined
-      ? Number(creator.score_total)
-      : null;
+        ? Number(creator.score_total)
+        : null;
 
   const scoreFit = (creator.score_fit_detalhes || []).map((item) => {
     const pontos =
       item.pontuacao_calculada !== null && item.pontuacao_calculada !== undefined
         ? Number(item.pontuacao_calculada)
         : item.valor !== null && item.valor !== undefined && item.valor !== ""
-        ? Number(item.valor)
-        : 0;
+          ? Number(item.valor)
+          : 0;
 
     const peso = Number(item.peso ?? 1);
     const pesoSeguro = peso > 0 ? peso : 1;
@@ -211,43 +280,45 @@ function CreatorDetailContent() {
             ← Voltar
           </a>
 
-          <div style={{ display: "flex", gap: "8px" }}>
-            <a
-              href={`/creators/avaliar?creator_id=${creator.creator_id}`}
-              style={{
-                background: "white",
-                color: "#0f766e",
-                border: "1px solid #99f6e4",
-                padding: "8px 14px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "12px",
-                fontWeight: 600,
-                textDecoration: "none",
-                display: "inline-block",
-              }}
-            >
-              Avaliar
-            </a>
+          {podeEditarCreators && (
+            <div style={{ display: "flex", gap: "8px" }}>
+              <a
+                href={`/creators/avaliar?creator_id=${creator.creator_id}`}
+                style={{
+                  background: "white",
+                  color: "#0f766e",
+                  border: "1px solid #99f6e4",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-block",
+                }}
+              >
+                Avaliar
+              </a>
 
-            <a
-              href={`/creators/edit?creator_id=${creator.creator_id}`}
-              style={{
-                background: "linear-gradient(to right, #0f766e, #14b8a6)",
-                color: "white",
-                border: "none",
-                padding: "8px 14px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "12px",
-                fontWeight: 600,
-                textDecoration: "none",
-                display: "inline-block",
-              }}
-            >
-              Editar
-            </a>
-          </div>
+              <a
+                href={`/creators/edit?creator_id=${creator.creator_id}`}
+                style={{
+                  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                  color: "white",
+                  border: "none",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "inline-block",
+                }}
+              >
+                Editar
+              </a>
+            </div>
+          )}
         </div>
 
         <div
@@ -311,18 +382,18 @@ function CreatorDetailContent() {
                   creator.status === "aprovado"
                     ? "#dcfce7"
                     : creator.status === "reprovado"
-                    ? "#fee2e2"
-                    : creator.status === "potencial"
-                    ? "#dbeafe"
-                    : "#fef9c3",
+                      ? "#fee2e2"
+                      : creator.status === "potencial"
+                        ? "#dbeafe"
+                        : "#fef9c3",
                 color:
                   creator.status === "aprovado"
                     ? "#166534"
                     : creator.status === "reprovado"
-                    ? "#991b1b"
-                    : creator.status === "potencial"
-                    ? "#1d4ed8"
-                    : "#854d0e",
+                      ? "#991b1b"
+                      : creator.status === "potencial"
+                        ? "#1d4ed8"
+                        : "#854d0e",
                 fontWeight: 600,
               }}
             >
