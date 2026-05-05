@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -52,9 +53,17 @@ type PermissaoCreators = {
   pode_excluir: boolean;
 };
 
+type PermissaoFinal = {
+  podeAcessar: boolean;
+  podeCriar: boolean;
+  podeEditar: boolean;
+};
+
 type ViewMode = "cards" | "kanban" | "lista";
 
 export default function CreatorsPage() {
+  const router = useRouter();
+
   const [creators, setCreators] = useState<Creator[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos os status");
@@ -63,7 +72,6 @@ export default function CreatorsPage() {
 
   const [podeCriar, setPodeCriar] = useState(false);
   const [podeEditar, setPodeEditar] = useState(false);
-  const [podeExcluir, setPodeExcluir] = useState(false);
 
   const [openModal, setOpenModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -80,33 +88,44 @@ export default function CreatorsPage() {
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [areasSpeaker, setAreasSpeaker] = useState<AreaSpeaker[]>([]);
 
-  const setPermissoesFallback = (perfil: string | null) => {
+  const getPermissoesFallback = (perfil: string | null): PermissaoFinal => {
     if (perfil === "admin") {
-      setPodeCriar(true);
-      setPodeEditar(true);
-      setPodeExcluir(true);
-      return;
+      return {
+        podeAcessar: true,
+        podeCriar: true,
+        podeEditar: true,
+      };
     }
 
     if (perfil === "suporte") {
-      setPodeCriar(true);
-      setPodeEditar(true);
-      setPodeExcluir(false);
-      return;
+      return {
+        podeAcessar: true,
+        podeCriar: true,
+        podeEditar: true,
+      };
     }
 
-    setPodeCriar(false);
-    setPodeEditar(false);
-    setPodeExcluir(false);
+    if (perfil === "terceirizado") {
+      return {
+        podeAcessar: true,
+        podeCriar: false,
+        podeEditar: false,
+      };
+    }
+
+    return {
+      podeAcessar: false,
+      podeCriar: false,
+      podeEditar: false,
+    };
   };
 
-  const loadPermissoesCreators = async (
+  const buscarPermissoesCreators = async (
     perfilAcessoId: string | null,
     perfilLegado: string | null,
-  ) => {
+  ): Promise<PermissaoFinal> => {
     if (!perfilAcessoId) {
-      setPermissoesFallback(perfilLegado);
-      return;
+      return getPermissoesFallback(perfilLegado);
     }
 
     const { data, error } = await supabase
@@ -118,102 +137,119 @@ export default function CreatorsPage() {
 
     if (error) {
       console.error("Erro ao buscar permissões de creators:", error);
-      setPermissoesFallback(perfilLegado);
-      return;
+      return getPermissoesFallback(perfilLegado);
     }
 
-    setPodeCriar(Boolean(data?.pode_criar));
-    setPodeEditar(Boolean(data?.pode_editar));
-    setPodeExcluir(Boolean(data?.pode_excluir));
+    return {
+      podeAcessar: Boolean(data?.pode_acessar),
+      podeCriar: Boolean(data?.pode_acessar && data?.pode_criar),
+      podeEditar: Boolean(data?.pode_acessar && data?.pode_editar),
+    };
   };
 
   const loadCreators = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session?.user) {
-      setCreators([]);
+      if (!session?.user) {
+        router.push("/");
+        return;
+      }
+
+      const { data: usuario, error: usuarioError } = await supabase
+        .from("usuarios")
+        .select("empresa_id, perfil, perfil_acesso_id")
+        .eq("usuario_id", session.user.id)
+        .single<UsuarioEmpresa>();
+
+      if (usuarioError || !usuario?.empresa_id) {
+        console.error("Erro ao buscar empresa do usuário:", usuarioError);
+        setCreators([]);
+        router.push("/perfil");
+        return;
+      }
+
+      const permissoes = await buscarPermissoesCreators(
+        usuario.perfil_acesso_id,
+        usuario.perfil,
+      );
+
+      if (!permissoes.podeAcessar) {
+        alert("Você não tem permissão para acessar creators.");
+        router.push("/dashboard");
+        return;
+      }
+
+      setPodeCriar(permissoes.podeCriar);
+      setPodeEditar(permissoes.podeEditar);
+      setEmpresaId(usuario.empresa_id);
+
+      const [creatorsRes, categoriasRes, segmentosRes, areasRes] =
+        await Promise.all([
+          supabase
+            .from("v_creator_detalhe")
+            .select(
+              "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento",
+            )
+            .eq("empresa_id", usuario.empresa_id)
+            .order("criado_em", { ascending: false }),
+
+          supabase
+            .from("categorias")
+            .select("categoria_id, nome")
+            .eq("empresa_id", usuario.empresa_id)
+            .order("nome", { ascending: true }),
+
+          supabase
+            .from("segmentos")
+            .select("segmento_id, nome, categoria_id")
+            .eq("empresa_id", usuario.empresa_id)
+            .order("nome", { ascending: true }),
+
+          supabase
+            .from("areas_speaker")
+            .select("area_speaker_id, nome, segmento_id")
+            .eq("empresa_id", usuario.empresa_id)
+            .order("nome", { ascending: true }),
+        ]);
+
+      if (creatorsRes.error) {
+        console.error("Erro ao buscar creators:", creatorsRes.error);
+        setCreators([]);
+      } else {
+        setCreators((creatorsRes.data as Creator[]) || []);
+      }
+
+      if (categoriasRes.error) {
+        console.error("Erro ao buscar categorias:", categoriasRes.error);
+        setCategorias([]);
+      } else {
+        setCategorias((categoriasRes.data as Categoria[]) || []);
+      }
+
+      if (segmentosRes.error) {
+        console.error("Erro ao buscar segmentos:", segmentosRes.error);
+        setSegmentos([]);
+      } else {
+        setSegmentos((segmentosRes.data as Segmento[]) || []);
+      }
+
+      if (areasRes.error) {
+        console.error("Erro ao buscar áreas speaker:", areasRes.error);
+        setAreasSpeaker([]);
+      } else {
+        setAreasSpeaker((areasRes.data as AreaSpeaker[]) || []);
+      }
+    } catch (err) {
+      console.error("Erro inesperado ao carregar creators:", err);
+      alert("Erro de conexão ao carregar creators.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("empresa_id, perfil, perfil_acesso_id")
-      .eq("usuario_id", session.user.id)
-      .single<UsuarioEmpresa>();
-
-    if (usuarioError || !usuario?.empresa_id) {
-      console.error("Erro ao buscar empresa do usuário:", usuarioError);
-      setCreators([]);
-      setLoading(false);
-      return;
-    }
-
-    setEmpresaId(usuario.empresa_id);
-    await loadPermissoesCreators(usuario.perfil_acesso_id, usuario.perfil);
-
-    const [creatorsRes, categoriasRes, segmentosRes, areasRes] =
-      await Promise.all([
-        supabase
-          .from("v_creator_detalhe")
-          .select(
-            "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento",
-          )
-          .eq("empresa_id", usuario.empresa_id)
-          .order("criado_em", { ascending: false }),
-
-        supabase
-          .from("categorias")
-          .select("categoria_id, nome")
-          .eq("empresa_id", usuario.empresa_id)
-          .order("nome", { ascending: true }),
-
-        supabase
-          .from("segmentos")
-          .select("segmento_id, nome, categoria_id")
-          .eq("empresa_id", usuario.empresa_id)
-          .order("nome", { ascending: true }),
-
-        supabase
-          .from("areas_speaker")
-          .select("area_speaker_id, nome, segmento_id")
-          .eq("empresa_id", usuario.empresa_id)
-          .order("nome", { ascending: true }),
-      ]);
-
-    if (creatorsRes.error) {
-      console.error("Erro ao buscar creators:", creatorsRes.error);
-      setCreators([]);
-    } else {
-      setCreators((creatorsRes.data as Creator[]) || []);
-    }
-
-    if (categoriasRes.error) {
-      console.error("Erro ao buscar categorias:", categoriasRes.error);
-      setCategorias([]);
-    } else {
-      setCategorias((categoriasRes.data as Categoria[]) || []);
-    }
-
-    if (segmentosRes.error) {
-      console.error("Erro ao buscar segmentos:", segmentosRes.error);
-      setSegmentos([]);
-    } else {
-      setSegmentos((segmentosRes.data as Segmento[]) || []);
-    }
-
-    if (areasRes.error) {
-      console.error("Erro ao buscar áreas speaker:", areasRes.error);
-      setAreasSpeaker([]);
-    } else {
-      setAreasSpeaker((areasRes.data as AreaSpeaker[]) || []);
-    }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -279,53 +315,57 @@ export default function CreatorsPage() {
       return;
     }
 
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const instagramLimpo = instagram.replaceAll("@", "").trim();
+      const instagramLimpo = instagram.replaceAll("@", "").trim();
 
-    const { data: creatorCriado, error: creatorError } = await supabase
-      .from("creators")
-      .insert([
-        {
-          nome: nome.trim(),
-          instagram: instagramLimpo,
-          empresa_id: empresaId,
-          categoria_id: categoriaId || null,
-        },
-      ])
-      .select("creator_id")
-      .single();
-
-    if (creatorError || !creatorCriado?.creator_id) {
-      setSaving(false);
-      alert(creatorError?.message || "Erro ao cadastrar creator.");
-      return;
-    }
-
-    if (segmentoId || areaSpeakerId) {
-      const { error: captacaoError } = await supabase
-        .from("creator_captacao")
+      const { data: creatorCriado, error: creatorError } = await supabase
+        .from("creators")
         .insert([
           {
-            creator_id: creatorCriado.creator_id,
+            nome: nome.trim(),
+            instagram: instagramLimpo,
             empresa_id: empresaId,
-            segmento_id: segmentoId || null,
-            area_speaker_id: areaSpeakerId || null,
-            atualizado_em: new Date().toISOString(),
+            categoria_id: categoriaId || null,
           },
-        ]);
+        ])
+        .select("creator_id")
+        .single();
 
-      if (captacaoError) {
-        setSaving(false);
-        alert(captacaoError.message);
+      if (creatorError || !creatorCriado?.creator_id) {
+        alert(creatorError?.message || "Erro ao cadastrar creator.");
         return;
       }
-    }
 
-    setSaving(false);
-    resetModalFields();
-    setOpenModal(false);
-    await loadCreators();
+      if (segmentoId || areaSpeakerId) {
+        const { error: captacaoError } = await supabase
+          .from("creator_captacao")
+          .insert([
+            {
+              creator_id: creatorCriado.creator_id,
+              empresa_id: empresaId,
+              segmento_id: segmentoId || null,
+              area_speaker_id: areaSpeakerId || null,
+              atualizado_em: new Date().toISOString(),
+            },
+          ]);
+
+        if (captacaoError) {
+          alert(captacaoError.message);
+          return;
+        }
+      }
+
+      resetModalFields();
+      setOpenModal(false);
+      await loadCreators();
+    } catch (err) {
+      console.error("Erro inesperado ao cadastrar creator:", err);
+      alert("Erro de conexão ao cadastrar creator.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredCreators = useMemo(() => {
@@ -420,18 +460,18 @@ export default function CreatorsPage() {
       status === "aprovado"
         ? "#dcfce7"
         : status === "reprovado"
-        ? "#fee2e2"
-        : status === "potencial"
-        ? "#dbeafe"
-        : "#fef9c3",
+          ? "#fee2e2"
+          : status === "potencial"
+            ? "#dbeafe"
+            : "#fef9c3",
     color:
       status === "aprovado"
         ? "#166534"
         : status === "reprovado"
-        ? "#991b1b"
-        : status === "potencial"
-        ? "#1d4ed8"
-        : "#854d0e",
+          ? "#991b1b"
+          : status === "potencial"
+            ? "#1d4ed8"
+            : "#854d0e",
     fontWeight: 600,
     whiteSpace: "nowrap" as const,
   });
@@ -441,18 +481,18 @@ export default function CreatorsPage() {
       status === "aprovado"
         ? "#f0fdf4"
         : status === "reprovado"
-        ? "#fef2f2"
-        : status === "potencial"
-        ? "#eff6ff"
-        : "#fefce8",
+          ? "#fef2f2"
+          : status === "potencial"
+            ? "#eff6ff"
+            : "#fefce8",
     border:
       status === "aprovado"
         ? "1px solid #bbf7d0"
         : status === "reprovado"
-        ? "1px solid #fecaca"
-        : status === "potencial"
-        ? "1px solid #bfdbfe"
-        : "1px solid #fde68a",
+          ? "1px solid #fecaca"
+          : status === "potencial"
+            ? "1px solid #bfdbfe"
+            : "1px solid #fde68a",
     borderRadius: "12px",
     padding: "10px",
     minWidth: "220px",
@@ -465,10 +505,10 @@ export default function CreatorsPage() {
       status === "aprovado"
         ? "#166534"
         : status === "reprovado"
-        ? "#991b1b"
-        : status === "potencial"
-        ? "#1d4ed8"
-        : "#854d0e",
+          ? "#991b1b"
+          : status === "potencial"
+            ? "#1d4ed8"
+            : "#854d0e",
   });
 
   const renderActionLinks = (creatorId: string) => {
