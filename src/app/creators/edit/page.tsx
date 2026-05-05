@@ -7,6 +7,13 @@ import AppLayout from "@/components/AppLayout";
 
 type UsuarioEmpresa = {
   empresa_id: string;
+  perfil: string | null;
+  perfil_acesso_id: string | null;
+};
+
+type PermissaoCreators = {
+  pode_acessar: boolean;
+  pode_editar: boolean;
 };
 
 type CreatorDetalhe = {
@@ -89,127 +96,171 @@ function EditCreatorContent() {
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [areasSpeaker, setAreasSpeaker] = useState<AreaSpeaker[]>([]);
 
+  const usuarioTemPermissaoEditar = async (
+    perfilAcessoId: string | null,
+    perfilLegado: string | null,
+  ) => {
+    if (!perfilAcessoId) {
+      return perfilLegado === "admin" || perfilLegado === "suporte";
+    }
+
+    const { data, error } = await supabase
+      .from("perfil_acesso_permissoes")
+      .select("pode_acessar, pode_editar")
+      .eq("perfil_acesso_id", perfilAcessoId)
+      .eq("pagina_key", "creators")
+      .maybeSingle<PermissaoCreators>();
+
+    if (error) {
+      console.error("Erro ao buscar permissão de edição:", error);
+      return perfilLegado === "admin" || perfilLegado === "suporte";
+    }
+
+    return Boolean(data?.pode_acessar && data?.pode_editar);
+  };
+
   useEffect(() => {
     const loadPage = async () => {
-      setLoading(true);
+      try {
+        setLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session?.user || !creatorId) {
+        if (!session?.user) {
+          router.push("/");
+          return;
+        }
+
+        if (!creatorId) {
+          router.push("/creators");
+          return;
+        }
+
+        const { data: usuario, error: usuarioError } = await supabase
+          .from("usuarios")
+          .select("empresa_id, perfil, perfil_acesso_id")
+          .eq("usuario_id", session.user.id)
+          .single<UsuarioEmpresa>();
+
+        if (usuarioError || !usuario?.empresa_id) {
+          console.error("Erro ao buscar empresa do usuário:", usuarioError);
+          router.push("/perfil");
+          return;
+        }
+
+        const temPermissaoEditar = await usuarioTemPermissaoEditar(
+          usuario.perfil_acesso_id,
+          usuario.perfil,
+        );
+
+        if (!temPermissaoEditar) {
+          alert("Você não tem permissão para editar creators.");
+          router.push(`/creators/detail?creator_id=${creatorId}`);
+          return;
+        }
+
+        setEmpresaId(usuario.empresa_id);
+
+        const [categoriasRes, segmentosRes, areasRes, creatorRes] =
+          await Promise.all([
+            supabase
+              .from("categorias")
+              .select("categoria_id, nome")
+              .eq("empresa_id", usuario.empresa_id)
+              .order("nome", { ascending: true }),
+
+            supabase
+              .from("segmentos")
+              .select("segmento_id, nome, categoria_id")
+              .eq("empresa_id", usuario.empresa_id)
+              .order("nome", { ascending: true }),
+
+            supabase
+              .from("areas_speaker")
+              .select("area_speaker_id, nome, segmento_id")
+              .eq("empresa_id", usuario.empresa_id)
+              .order("nome", { ascending: true }),
+
+            supabase
+              .from("v_creator_detalhe")
+              .select(
+                "creator_id, empresa_id, nome, instagram, status, categoria_id, segmento_id, area_speaker_id, tipo_creator, seguidores, engajamento, curtidas_medias, comentarios_medios",
+              )
+              .eq("creator_id", creatorId)
+              .eq("empresa_id", usuario.empresa_id)
+              .single<CreatorDetalhe>(),
+          ]);
+
+        if (categoriasRes.error) {
+          console.error("Erro ao buscar categorias:", categoriasRes.error);
+        } else {
+          setCategorias((categoriasRes.data as Categoria[]) || []);
+        }
+
+        if (segmentosRes.error) {
+          console.error("Erro ao buscar segmentos:", segmentosRes.error);
+        } else {
+          setSegmentos((segmentosRes.data as Segmento[]) || []);
+        }
+
+        if (areasRes.error) {
+          console.error("Erro ao buscar áreas speaker:", areasRes.error);
+        } else {
+          setAreasSpeaker((areasRes.data as AreaSpeaker[]) || []);
+        }
+
+        if (creatorRes.error || !creatorRes.data) {
+          console.error("Erro ao buscar creator:", creatorRes.error);
+          setLoading(false);
+          return;
+        }
+
+        const creator = creatorRes.data;
+
+        setNome(creator.nome || "");
+        setInstagram(creator.instagram || "");
+        setStatus(creator.status || "em_analise");
+        setCategoriaId(creator.categoria_id || "");
+        setSegmentoId(creator.segmento_id || "");
+        setAreaSpeakerId(creator.area_speaker_id || "");
+        setTipoCreator(creator.tipo_creator || "");
+
+        setSeguidores(
+          creator.seguidores !== null && creator.seguidores !== undefined
+            ? String(creator.seguidores)
+            : "",
+        );
+
+        setEngajamento(
+          creator.engajamento !== null && creator.engajamento !== undefined
+            ? String(creator.engajamento)
+            : "",
+        );
+
+        setCurtidasMedias(
+          creator.curtidas_medias !== null && creator.curtidas_medias !== undefined
+            ? String(creator.curtidas_medias)
+            : "",
+        );
+
+        setComentariosMedios(
+          creator.comentarios_medios !== null &&
+            creator.comentarios_medios !== undefined
+            ? String(creator.comentarios_medios)
+            : "",
+        );
+      } catch (err) {
+        console.error("Erro inesperado ao carregar edição:", err);
+        alert("Erro de conexão ao carregar edição.");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data: usuario, error: usuarioError } = await supabase
-        .from("usuarios")
-        .select("empresa_id")
-        .eq("usuario_id", session.user.id)
-        .single<UsuarioEmpresa>();
-
-      if (usuarioError || !usuario?.empresa_id) {
-        console.error("Erro ao buscar empresa do usuário:", usuarioError);
-        setLoading(false);
-        return;
-      }
-
-      setEmpresaId(usuario.empresa_id);
-
-      const [categoriasRes, segmentosRes, areasRes, creatorRes] =
-        await Promise.all([
-          supabase
-            .from("categorias")
-            .select("categoria_id, nome")
-            .eq("empresa_id", usuario.empresa_id)
-            .order("nome", { ascending: true }),
-
-          supabase
-            .from("segmentos")
-            .select("segmento_id, nome, categoria_id")
-            .eq("empresa_id", usuario.empresa_id)
-            .order("nome", { ascending: true }),
-
-          supabase
-            .from("areas_speaker")
-            .select("area_speaker_id, nome, segmento_id")
-            .eq("empresa_id", usuario.empresa_id)
-            .order("nome", { ascending: true }),
-
-          supabase
-            .from("v_creator_detalhe")
-            .select(
-              "creator_id, empresa_id, nome, instagram, status, categoria_id, segmento_id, area_speaker_id, tipo_creator, seguidores, engajamento, curtidas_medias, comentarios_medios"
-            )
-            .eq("creator_id", creatorId)
-            .eq("empresa_id", usuario.empresa_id)
-            .single<CreatorDetalhe>(),
-        ]);
-
-      if (categoriasRes.error) {
-        console.error("Erro ao buscar categorias:", categoriasRes.error);
-      } else {
-        setCategorias((categoriasRes.data as Categoria[]) || []);
-      }
-
-      if (segmentosRes.error) {
-        console.error("Erro ao buscar segmentos:", segmentosRes.error);
-      } else {
-        setSegmentos((segmentosRes.data as Segmento[]) || []);
-      }
-
-      if (areasRes.error) {
-        console.error("Erro ao buscar áreas speaker:", areasRes.error);
-      } else {
-        setAreasSpeaker((areasRes.data as AreaSpeaker[]) || []);
-      }
-
-      if (creatorRes.error || !creatorRes.data) {
-        console.error("Erro ao buscar creator:", creatorRes.error);
-        setLoading(false);
-        return;
-      }
-
-      const creator = creatorRes.data;
-
-      setNome(creator.nome || "");
-      setInstagram(creator.instagram || "");
-      setStatus(creator.status || "em_analise");
-      setCategoriaId(creator.categoria_id || "");
-      setSegmentoId(creator.segmento_id || "");
-      setAreaSpeakerId(creator.area_speaker_id || "");
-      setTipoCreator(creator.tipo_creator || "");
-
-      setSeguidores(
-        creator.seguidores !== null && creator.seguidores !== undefined
-          ? String(creator.seguidores)
-          : ""
-      );
-
-      setEngajamento(
-        creator.engajamento !== null && creator.engajamento !== undefined
-          ? String(creator.engajamento)
-          : ""
-      );
-
-      setCurtidasMedias(
-        creator.curtidas_medias !== null && creator.curtidas_medias !== undefined
-          ? String(creator.curtidas_medias)
-          : ""
-      );
-
-      setComentariosMedios(
-        creator.comentarios_medios !== null &&
-          creator.comentarios_medios !== undefined
-          ? String(creator.comentarios_medios)
-          : ""
-      );
-
-      setLoading(false);
     };
 
     setTimeout(loadPage, 300);
-  }, [creatorId]);
+  }, [creatorId, router]);
 
   const segmentosFiltrados = useMemo(() => {
     if (!categoriaId) return segmentos;
@@ -331,8 +382,8 @@ function EditCreatorContent() {
 
       alert("Cadastro e classificação salvos com sucesso.");
       router.push(`/creators/detail?creator_id=${creatorId}`);
-    } catch (err: any) {
-      alert(err.message || "Erro ao salvar cadastro.");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erro ao salvar cadastro.");
     }
 
     setSavingCadastro(false);
@@ -383,8 +434,8 @@ function EditCreatorContent() {
 
       alert("Métricas salvas com sucesso.");
       router.push(`/creators/detail?creator_id=${creatorId}`);
-    } catch (err: any) {
-      alert(err.message || "Erro ao salvar métricas.");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Erro ao salvar métricas.");
     }
 
     setSavingMetricas(false);
