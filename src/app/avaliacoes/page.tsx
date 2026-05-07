@@ -23,19 +23,11 @@ type Criterio = {
   etapa_id: string | null;
 };
 
-type ConfiguracaoFunil = {
-  empresa_id: string;
-  min_score_aprovacao: number | null;
-  min_score_potencial: number | null;
-  permitir_potencial: boolean | null;
-};
-
 export default function AvaliacoesPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [savingCriterio, setSavingCriterio] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
   const [deletingCriterioId, setDeletingCriterioId] = useState<string | null>(null);
 
   const [criterios, setCriterios] = useState<Criterio[]>([]);
@@ -47,9 +39,6 @@ export default function AvaliacoesPage() {
   const [ordemCriterio, setOrdemCriterio] = useState("");
   const [etapaId, setEtapaId] = useState("");
 
-  const [minScoreAprovacao, setMinScoreAprovacao] = useState("7");
-  const [minScorePotencial, setMinScorePotencial] = useState("5");
-  const [permitirPotencial, setPermitirPotencial] = useState(true);
 
   const loadPage = async () => {
     try {
@@ -79,7 +68,7 @@ export default function AvaliacoesPage() {
 
       setEmpresaId(usuario.empresa_id);
 
-      const [criteriosRes, etapasRes, configRes] = await Promise.all([
+      const [criteriosRes, etapasRes] = await Promise.all([
         supabase
           .from("criterios_avaliacao")
           .select("criterio_id, nome, peso, tipo_resposta, ordem, etapa_id")
@@ -93,14 +82,6 @@ export default function AvaliacoesPage() {
           .eq("empresa_id", usuario.empresa_id)
           .order("ordem", { ascending: true })
           .order("nome", { ascending: true }),
-
-        supabase
-          .from("configuracoes_funil")
-          .select(
-            "empresa_id, min_score_aprovacao, min_score_potencial, permitir_potencial"
-          )
-          .eq("empresa_id", usuario.empresa_id)
-          .maybeSingle<ConfiguracaoFunil>(),
       ]);
 
       if (criteriosRes.error) {
@@ -122,29 +103,6 @@ export default function AvaliacoesPage() {
         }
       }
 
-      if (configRes.error) {
-        console.error("Erro ao buscar configurações do funil:", configRes.error);
-      } else if (configRes.data) {
-        setMinScoreAprovacao(
-          configRes.data.min_score_aprovacao !== null &&
-            configRes.data.min_score_aprovacao !== undefined
-            ? String(configRes.data.min_score_aprovacao)
-            : "7"
-        );
-
-        setMinScorePotencial(
-          configRes.data.min_score_potencial !== null &&
-            configRes.data.min_score_potencial !== undefined
-            ? String(configRes.data.min_score_potencial)
-            : "5"
-        );
-
-        setPermitirPotencial(configRes.data.permitir_potencial ?? true);
-      } else {
-        setMinScoreAprovacao("7");
-        setMinScorePotencial("5");
-        setPermitirPotencial(true);
-      }
     } catch (err) {
       console.error("Erro inesperado ao carregar avaliações:", err);
       alert("Erro de conexão ao carregar avaliações.");
@@ -303,72 +261,6 @@ export default function AvaliacoesPage() {
     }
   };
 
-  const handleSaveConfig = async () => {
-    try {
-      if (!empresaId) {
-        alert("Empresa não encontrada.");
-        return;
-      }
-
-      setSavingConfig(true);
-
-      const minScore = Number(minScoreAprovacao.replace(",", "."));
-      const minScorePot = Number(minScorePotencial.replace(",", "."));
-
-      const configPayload = {
-        min_score_aprovacao: Number.isNaN(minScore) ? 7 : minScore,
-        min_score_potencial: Number.isNaN(minScorePot) ? 5 : minScorePot,
-        permitir_potencial: permitirPotencial,
-      };
-
-      const { data: existingConfig, error: findError } = await supabase
-        .from("configuracoes_funil")
-        .select("empresa_id")
-        .eq("empresa_id", empresaId)
-        .maybeSingle();
-
-      if (findError) {
-        console.error("Erro ao buscar configuração existente:", findError);
-        alert(findError.message);
-        return;
-      }
-
-      let saveError = null;
-
-      if (existingConfig) {
-        const { error } = await supabase
-          .from("configuracoes_funil")
-          .update(configPayload)
-          .eq("empresa_id", empresaId);
-
-        saveError = error;
-      } else {
-        const { error } = await supabase.from("configuracoes_funil").insert([
-          {
-            empresa_id: empresaId,
-            ...configPayload,
-          },
-        ]);
-
-        saveError = error;
-      }
-
-      if (saveError) {
-        console.error("Erro ao salvar configurações:", saveError);
-        alert(saveError.message);
-        return;
-      }
-
-      await loadPage();
-      alert("Configurações gerais salvas com sucesso.");
-    } catch (err) {
-      console.error("Erro inesperado ao salvar configurações:", err);
-      alert("Erro de conexão. Tente novamente.");
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
   return (
     <AppLayout>
       <div>
@@ -503,63 +395,6 @@ export default function AvaliacoesPage() {
               </div>
             ))
           )}
-        </div>
-
-        <div style={{ ...card, marginTop: "16px" }}>
-          <div style={{ marginBottom: "12px", fontWeight: 600 }}>
-            Configurações Gerais
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "24px",
-              alignItems: "end",
-            }}
-          >
-            <div>
-              <div style={label}>Nota mínima para aprovação</div>
-              <input
-                style={input}
-                value={minScoreAprovacao}
-                onChange={(e) => setMinScoreAprovacao(e.target.value)}
-                inputMode="decimal"
-              />
-            </div>
-
-            <div>
-              <div style={label}>Nota mínima para potencial</div>
-              <input
-                style={input}
-                value={minScorePotencial}
-                onChange={(e) => setMinScorePotencial(e.target.value)}
-                inputMode="decimal"
-              />
-            </div>
-
-            <div>
-              <div style={label}>Permitir potencial</div>
-              <select
-                style={input}
-                value={permitirPotencial ? "true" : "false"}
-                onChange={(e) => setPermitirPotencial(e.target.value === "true")}
-              >
-                <option value="true">Sim</option>
-                <option value="false">Não</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "12px" }}>
-            <button
-              onClick={handleSaveConfig}
-              disabled={savingConfig}
-              style={primaryButton}
-            >
-              {savingConfig ? "Salvando..." : "Salvar Configurações"}
-            </button>
-          </div>
         </div>
       </div>
     </AppLayout>

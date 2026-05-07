@@ -25,6 +25,12 @@ type AreaSpeaker = {
   segmento_id: string;
 };
 
+type ConfiguracaoFunil = {
+  min_score_aprovacao: number | null;
+  min_score_potencial: number | null;
+  permitir_potencial: boolean | null;
+};
+
 type PerfilAcesso = {
   perfil_acesso_id: string;
   empresa_id: string;
@@ -87,6 +93,11 @@ export default function ConfiguracoesPage() {
   const [novaArea, setNovaArea] = useState("");
   const [segmentoAreaId, setSegmentoAreaId] = useState("");
 
+  const [loadingFunil, setLoadingFunil] = useState(true);
+  const [savingFunil, setSavingFunil] = useState(false);
+  const [minScoreAprovacao, setMinScoreAprovacao] = useState(7);
+  const [minScorePotencial, setMinScorePotencial] = useState(4);
+
   const [loadingAcessos, setLoadingAcessos] = useState(true);
   const [savingPermissoes, setSavingPermissoes] = useState(false);
   const [savingNovoPerfil, setSavingNovoPerfil] = useState(false);
@@ -94,9 +105,19 @@ export default function ConfiguracoesPage() {
   const [paginasSistema, setPaginasSistema] = useState<PaginaSistema[]>([]);
   const [permissoes, setPermissoes] = useState<PermissaoPerfil[]>([]);
   const [selectedPerfilId, setSelectedPerfilId] = useState("");
-  const [permissoesDraft, setPermissoesDraft] = useState<Record<string, PermissaoDraft>>({});
+  const [permissoesDraft, setPermissoesDraft] = useState<
+    Record<string, PermissaoDraft>
+  >({});
   const [novoPerfilNome, setNovoPerfilNome] = useState("");
   const [novoPerfilDescricao, setNovoPerfilDescricao] = useState("");
+  const [activeTab, setActiveTab] = useState<
+    | "empresa"
+    | "funil"
+    | "classificacao"
+    | "perfis"
+    | "notificacoes"
+    | "seguranca"
+  >("classificacao");
 
   const loadCategorias = async (empresaIdParam?: string) => {
     const empresa = empresaIdParam || empresaId;
@@ -164,6 +185,33 @@ export default function ConfiguracoesPage() {
     setLoadingAreas(false);
   };
 
+  const loadFunil = async (empresaIdParam?: string) => {
+    const empresa = empresaIdParam || empresaId;
+    if (!empresa) return;
+
+    setLoadingFunil(true);
+
+    const { data, error } = await supabase
+      .from("configuracoes_funil")
+      .select("min_score_aprovacao, min_score_potencial, permitir_potencial")
+      .eq("empresa_id", empresa)
+      .maybeSingle<ConfiguracaoFunil>();
+
+    if (error) {
+      console.error("Erro ao buscar configurações do funil:", error);
+      setMinScoreAprovacao(7);
+      setMinScorePotencial(4);
+    } else if (data) {
+      setMinScoreAprovacao(Number(data.min_score_aprovacao ?? 7));
+      setMinScorePotencial(Number(data.min_score_potencial ?? 4));
+    } else {
+      setMinScoreAprovacao(7);
+      setMinScorePotencial(4);
+    }
+
+    setLoadingFunil(false);
+  };
+
   const buildDraft = (
     perfilId: string,
     paginas: PaginaSistema[],
@@ -173,7 +221,9 @@ export default function ConfiguracoesPage() {
 
     paginas.forEach((pagina) => {
       const permissao = permissoesLista.find(
-        (item) => item.perfil_acesso_id === perfilId && item.pagina_key === pagina.pagina_key,
+        (item) =>
+          item.perfil_acesso_id === perfilId &&
+          item.pagina_key === pagina.pagina_key,
       );
 
       draft[pagina.pagina_key] = permissao
@@ -195,23 +245,28 @@ export default function ConfiguracoesPage() {
 
     setLoadingAcessos(true);
 
-    const [perfisResponse, paginasResponse, permissoesResponse] = await Promise.all([
-      supabase
-        .from("perfis_acesso")
-        .select("perfil_acesso_id, empresa_id, nome, slug, descricao, is_admin, sistema, ativo")
-        .eq("empresa_id", empresa)
-        .eq("ativo", true)
-        .order("sistema", { ascending: false })
-        .order("nome", { ascending: true }),
-      supabase
-        .from("paginas_sistema")
-        .select("pagina_key, nome, rota, ordem, ativo")
-        .eq("ativo", true)
-        .order("ordem", { ascending: true }),
-      supabase
-        .from("perfil_acesso_permissoes")
-        .select("perfil_acesso_id, pagina_key, pode_acessar, pode_criar, pode_editar, pode_excluir"),
-    ]);
+    const [perfisResponse, paginasResponse, permissoesResponse] =
+      await Promise.all([
+        supabase
+          .from("perfis_acesso")
+          .select(
+            "perfil_acesso_id, empresa_id, nome, slug, descricao, is_admin, sistema, ativo",
+          )
+          .eq("empresa_id", empresa)
+          .eq("ativo", true)
+          .order("sistema", { ascending: false })
+          .order("nome", { ascending: true }),
+        supabase
+          .from("paginas_sistema")
+          .select("pagina_key, nome, rota, ordem, ativo")
+          .eq("ativo", true)
+          .order("ordem", { ascending: true }),
+        supabase
+          .from("perfil_acesso_permissoes")
+          .select(
+            "perfil_acesso_id, pagina_key, pode_acessar, pode_criar, pode_editar, pode_excluir",
+          ),
+      ]);
 
     if (perfisResponse.error) {
       console.error("Erro ao buscar perfis de acesso:", perfisResponse.error);
@@ -219,7 +274,10 @@ export default function ConfiguracoesPage() {
     }
 
     if (paginasResponse.error) {
-      console.error("Erro ao buscar páginas do sistema:", paginasResponse.error);
+      console.error(
+        "Erro ao buscar páginas do sistema:",
+        paginasResponse.error,
+      );
       setPaginasSistema([]);
     }
 
@@ -228,27 +286,35 @@ export default function ConfiguracoesPage() {
       setPermissoes([]);
     }
 
-    const perfis = ((perfisResponse.data || []) as PerfilAcesso[]).sort((a, b) => {
-      const ordemA = getPerfilOrder(a.slug);
-      const ordemB = getPerfilOrder(b.slug);
-      if (ordemA !== ordemB) return ordemA - ordemB;
-      return getPerfilNomeVisual(a).localeCompare(getPerfilNomeVisual(b));
-    });
+    const perfis = ((perfisResponse.data || []) as PerfilAcesso[]).sort(
+      (a, b) => {
+        const ordemA = getPerfilOrder(a.slug);
+        const ordemB = getPerfilOrder(b.slug);
+        if (ordemA !== ordemB) return ordemA - ordemB;
+        return getPerfilNomeVisual(a).localeCompare(getPerfilNomeVisual(b));
+      },
+    );
 
     const paginas = (paginasResponse.data || []) as PaginaSistema[];
-    const permissoesLista = (permissoesResponse.data || []) as PermissaoPerfil[];
+    const permissoesLista = (permissoesResponse.data ||
+      []) as PermissaoPerfil[];
 
     setPerfisAcesso(perfis);
     setPaginasSistema(paginas);
     setPermissoes(permissoesLista);
 
     const perfilSelecionado =
-      selectedPerfilId && perfis.some((perfil) => perfil.perfil_acesso_id === selectedPerfilId)
+      selectedPerfilId &&
+      perfis.some((perfil) => perfil.perfil_acesso_id === selectedPerfilId)
         ? selectedPerfilId
         : perfis[0]?.perfil_acesso_id || "";
 
     setSelectedPerfilId(perfilSelecionado);
-    setPermissoesDraft(perfilSelecionado ? buildDraft(perfilSelecionado, paginas, permissoesLista) : {});
+    setPermissoesDraft(
+      perfilSelecionado
+        ? buildDraft(perfilSelecionado, paginas, permissoesLista)
+        : {},
+    );
 
     setLoadingAcessos(false);
   };
@@ -262,6 +328,7 @@ export default function ConfiguracoesPage() {
       setLoadingCategorias(false);
       setLoadingSegmentos(false);
       setLoadingAreas(false);
+      setLoadingFunil(false);
       setLoadingAcessos(false);
       return;
     }
@@ -277,6 +344,7 @@ export default function ConfiguracoesPage() {
       setLoadingCategorias(false);
       setLoadingSegmentos(false);
       setLoadingAreas(false);
+      setLoadingFunil(false);
       setLoadingAcessos(false);
       return;
     }
@@ -287,6 +355,7 @@ export default function ConfiguracoesPage() {
       loadCategorias(usuario.empresa_id),
       loadSegmentos(usuario.empresa_id),
       loadAreas(usuario.empresa_id),
+      loadFunil(usuario.empresa_id),
       loadAcessos(usuario.empresa_id),
     ]);
   };
@@ -297,7 +366,9 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     if (!selectedPerfilId || paginasSistema.length === 0) return;
-    setPermissoesDraft(buildDraft(selectedPerfilId, paginasSistema, permissoes));
+    setPermissoesDraft(
+      buildDraft(selectedPerfilId, paginasSistema, permissoes),
+    );
   }, [selectedPerfilId]);
 
   const handleCreateCategoria = async () => {
@@ -407,6 +478,60 @@ export default function ConfiguracoesPage() {
     await loadAreas();
   };
 
+  const handleSaveFunil = async () => {
+    if (!empresaId) {
+      alert("Empresa não encontrada.");
+      return;
+    }
+
+    const aprovacao = Number(minScoreAprovacao);
+    const potencial = Number(minScorePotencial);
+
+    if (Number.isNaN(aprovacao) || aprovacao < 0 || aprovacao > 10) {
+      alert("Informe uma nota mínima para aprovação entre 0 e 10.");
+      return;
+    }
+
+    if (Number.isNaN(potencial) || potencial < 0 || potencial > 10) {
+      alert("Informe uma nota mínima para potencial entre 0 e 10.");
+      return;
+    }
+
+    if (potencial > aprovacao) {
+      alert("A nota mínima para potencial não pode ser maior que a nota mínima para aprovação.");
+      return;
+    }
+
+    try {
+      setSavingFunil(true);
+
+      const { error } = await supabase.from("configuracoes_funil").upsert(
+        [
+          {
+            empresa_id: empresaId,
+            min_score_aprovacao: aprovacao,
+            min_score_potencial: potencial,
+            permitir_potencial: true,
+          },
+        ],
+        { onConflict: "empresa_id" },
+      );
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      alert("Configurações do funil salvas com sucesso.");
+      await loadFunil();
+    } catch (err) {
+      console.error("Erro inesperado ao salvar funil:", err);
+      alert("Erro de conexão ao salvar configurações do funil.");
+    } finally {
+      setSavingFunil(false);
+    }
+  };
+
   const handleCreatePerfilAcesso = async () => {
     if (!empresaId) {
       alert("Empresa não encontrada.");
@@ -452,7 +577,9 @@ export default function ConfiguracoesPage() {
       const perfilId = data?.perfil_acesso_id;
 
       if (perfilId) {
-        const perfilPermission = paginasSistema.find((pagina) => pagina.pagina_key === "perfil");
+        const perfilPermission = paginasSistema.find(
+          (pagina) => pagina.pagina_key === "perfil",
+        );
 
         if (perfilPermission) {
           await supabase.from("perfil_acesso_permissoes").upsert(
@@ -483,7 +610,10 @@ export default function ConfiguracoesPage() {
     }
   };
 
-  const handleTogglePermissao = (paginaKey: string, field: keyof PermissaoDraft) => {
+  const handleTogglePermissao = (
+    paginaKey: string,
+    field: keyof PermissaoDraft,
+  ) => {
     setPermissoesDraft((current) => {
       const atual = current[paginaKey] || { ...emptyPermissao };
       const atualizado = {
@@ -519,7 +649,9 @@ export default function ConfiguracoesPage() {
       return;
     }
 
-    const selectedPerfil = perfisAcesso.find((perfil) => perfil.perfil_acesso_id === selectedPerfilId);
+    const selectedPerfil = perfisAcesso.find(
+      (perfil) => perfil.perfil_acesso_id === selectedPerfilId,
+    );
 
     if (selectedPerfil?.is_admin) {
       const confirmar = window.confirm(
@@ -533,7 +665,9 @@ export default function ConfiguracoesPage() {
       setSavingPermissoes(true);
 
       const payload = paginasSistema.map((pagina) => {
-        const permissao = permissoesDraft[pagina.pagina_key] || { ...emptyPermissao };
+        const permissao = permissoesDraft[pagina.pagina_key] || {
+          ...emptyPermissao,
+        };
 
         return {
           perfil_acesso_id: selectedPerfilId,
@@ -545,9 +679,11 @@ export default function ConfiguracoesPage() {
         };
       });
 
-      const { error } = await supabase.from("perfil_acesso_permissoes").upsert(payload, {
-        onConflict: "perfil_acesso_id,pagina_key",
-      });
+      const { error } = await supabase
+        .from("perfil_acesso_permissoes")
+        .upsert(payload, {
+          onConflict: "perfil_acesso_id,pagina_key",
+        });
 
       if (error) {
         alert(error.message);
@@ -566,7 +702,9 @@ export default function ConfiguracoesPage() {
 
   const segmentosComCategoria = useMemo(() => {
     return segmentos.map((segmento) => {
-      const categoria = categorias.find((c) => c.categoria_id === segmento.categoria_id);
+      const categoria = categorias.find(
+        (c) => c.categoria_id === segmento.categoria_id,
+      );
 
       return {
         ...segmento,
@@ -577,7 +715,9 @@ export default function ConfiguracoesPage() {
 
   const areasComSegmento = useMemo(() => {
     return areasSpeaker.map((area) => {
-      const segmento = segmentos.find((s) => s.segmento_id === area.segmento_id);
+      const segmento = segmentos.find(
+        (s) => s.segmento_id === area.segmento_id,
+      );
 
       return {
         ...area,
@@ -586,7 +726,9 @@ export default function ConfiguracoesPage() {
     });
   }, [areasSpeaker, segmentos]);
 
-  const selectedPerfil = perfisAcesso.find((perfil) => perfil.perfil_acesso_id === selectedPerfilId);
+  const selectedPerfil = perfisAcesso.find(
+    (perfil) => perfil.perfil_acesso_id === selectedPerfilId,
+  );
 
   return (
     <AppLayout>
@@ -596,362 +738,568 @@ export default function ConfiguracoesPage() {
           <p style={subtitle}>Gerencie as configurações da sua empresa</p>
         </div>
 
-        <div style={card}>
-          <h3 style={sectionTitle}>🏢 Empresa</h3>
+        <div style={tabsRow}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("empresa")}
+            style={activeTab === "empresa" ? tabButtonActive : tabButton}
+          >
+            Empresa
+          </button>
 
-          <div style={grid2}>
-            <div>
-              <label style={label}>Nome da empresa</label>
-              <input style={input} defaultValue="Funcionow Ltda" />
-            </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("funil")}
+            style={activeTab === "funil" ? tabButtonActive : tabButton}
+          >
+            Funil
+          </button>
 
-            <div>
-              <label style={label}>E-mail de contato</label>
-              <input style={input} defaultValue="contato@funcionow.com" />
-            </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("classificacao")}
+            style={activeTab === "classificacao" ? tabButtonActive : tabButton}
+          >
+            Classificação
+          </button>
 
-            <div>
-              <label style={label}>Website</label>
-              <input style={input} defaultValue="https://funcionow.com" />
-            </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("perfis")}
+            style={activeTab === "perfis" ? tabButtonActive : tabButton}
+          >
+            Perfis de acesso
+          </button>
 
-            <div>
-              <label style={label}>Segmento</label>
-              <input style={input} defaultValue="SaaS e Influencer" />
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab("notificacoes")}
+            style={activeTab === "notificacoes" ? tabButtonActive : tabButton}
+          >
+            Notificações
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("seguranca")}
+            style={activeTab === "seguranca" ? tabButtonActive : tabButton}
+          >
+            Segurança
+          </button>
         </div>
 
-        <div style={card}>
-          <h3 style={sectionTitle}>🔐 Perfis de acesso</h3>
-          <p style={cardDescription}>
-            Configure quais páginas cada perfil pode acessar. O relacionamento da pessoa continua separado: Colaborador ou Terceirizado.
-          </p>
+        {activeTab === "empresa" && (
+          <div style={card}>
+            <h3 style={sectionTitle}>🏢 Empresa</h3>
 
-          <div style={accessGrid}>
-            <div style={profileColumn}>
-              <div style={smallSectionTitle}>Perfis da empresa</div>
+            <div style={grid2}>
+              <div>
+                <label style={label}>Nome da empresa</label>
+                <input style={input} defaultValue="Funcionow Ltda" />
+              </div>
 
-              {loadingAcessos ? (
-                <div style={emptyText}>Carregando perfis...</div>
-              ) : perfisAcesso.length === 0 ? (
-                <div style={emptyText}>Nenhum perfil cadastrado.</div>
-              ) : (
-                <div style={profileList}>
-                  {perfisAcesso.map((perfil) => (
-                    <button
-                      key={perfil.perfil_acesso_id}
-                      type="button"
-                      onClick={() => setSelectedPerfilId(perfil.perfil_acesso_id)}
-                      style={
-                        selectedPerfilId === perfil.perfil_acesso_id
-                          ? profileButtonActive
-                          : profileButton
+              <div>
+                <label style={label}>E-mail de contato</label>
+                <input style={input} defaultValue="contato@funcionow.com" />
+              </div>
+
+              <div>
+                <label style={label}>Website</label>
+                <input style={input} defaultValue="https://funcionow.com" />
+              </div>
+
+              <div>
+                <label style={label}>Segmento</label>
+                <input style={input} defaultValue="SaaS e Influencer" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "funil" && (
+          <div style={card}>
+            <h3 style={sectionTitle}>⚙️ Funil</h3>
+            <p style={cardDescription}>
+              Defina as notas mínimas usadas para classificar o creator depois
+              da avaliação. O status Potencial fica automático quando a nota
+              atingir o mínimo definido abaixo.
+            </p>
+
+            {loadingFunil ? (
+              <div style={emptyText}>Carregando configurações do funil...</div>
+            ) : (
+              <>
+                <div style={grid2}>
+                  <div>
+                    <label style={label}>Nota mínima para aprovação</label>
+                    <input
+                      style={input}
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={minScoreAprovacao}
+                      onChange={(e) =>
+                        setMinScoreAprovacao(Number(e.target.value))
                       }
-                    >
-                      <span style={profileName}>{getPerfilNomeVisual(perfil)}</span>
-                      <span style={profileMeta}>
-                        {perfil.sistema ? "Padrão" : "Personalizado"}
-                      </span>
-                    </button>
-                  ))}
+                    />
+                    <div style={helperText}>
+                      Nota igual ou maior que este valor vira Aprovado.
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={label}>Nota mínima para potencial</label>
+                    <input
+                      style={input}
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={minScorePotencial}
+                      onChange={(e) =>
+                        setMinScorePotencial(Number(e.target.value))
+                      }
+                    />
+                    <div style={helperText}>
+                      Nota abaixo da aprovação, mas igual ou maior que este
+                      valor, vira Potencial.
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              <div style={newProfileBox}>
-                <div style={smallSectionTitle}>Criar novo perfil</div>
+                <div style={ruleBox}>
+                  <div style={ruleTitle}>Regra atual</div>
+                  <div style={ruleText}>
+                    Nota ≥ {minScoreAprovacao || 0}: Aprovado • Nota ≥{" "}
+                    {minScorePotencial || 0}: Potencial • Abaixo disso:
+                    Reprovado
+                  </div>
+                </div>
 
+                <div style={{ marginTop: "14px" }}>
+                  <button
+                    type="button"
+                    onClick={handleSaveFunil}
+                    disabled={savingFunil}
+                    style={saveButton}
+                  >
+                    {savingFunil ? "Salvando..." : "Salvar configurações do funil"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "classificacao" && (
+          <>
+            <div style={card}>
+              <h3 style={sectionTitle}>🗂️ Categorias</h3>
+
+              <div style={rowForm}>
                 <input
                   style={input}
-                  placeholder="Ex: Financeiro"
-                  value={novoPerfilNome}
-                  onChange={(e) => setNovoPerfilNome(e.target.value)}
-                />
-
-                <textarea
-                  style={{ ...textarea, marginTop: "8px" }}
-                  placeholder="Descrição opcional"
-                  value={novoPerfilDescricao}
-                  onChange={(e) => setNovoPerfilDescricao(e.target.value)}
+                  placeholder="Ex: Fitness"
+                  value={novaCategoria}
+                  onChange={(e) => setNovaCategoria(e.target.value)}
                 />
 
                 <button
                   type="button"
-                  onClick={handleCreatePerfilAcesso}
-                  disabled={savingNovoPerfil}
-                  style={{ ...saveButton, marginTop: "8px", width: "100%" }}
-                >
-                  {savingNovoPerfil ? "Criando..." : "Criar perfil"}
-                </button>
-              </div>
-            </div>
-
-            <div style={permissionsColumn}>
-              <div style={permissionsHeader}>
-                <div>
-                  <div style={smallSectionTitle}>Permissões</div>
-                  <div style={selectedProfileName}>
-                    {selectedPerfil ? getPerfilNomeVisual(selectedPerfil) : "Selecione um perfil"}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSalvarPermissoes}
-                  disabled={savingPermissoes || !selectedPerfilId}
+                  onClick={handleCreateCategoria}
+                  disabled={savingCategoria}
                   style={saveButton}
                 >
-                  {savingPermissoes ? "Salvando..." : "Salvar permissões"}
+                  {savingCategoria ? "Salvando..." : "Adicionar categoria"}
                 </button>
               </div>
 
-              {loadingAcessos ? (
-                <div style={emptyText}>Carregando permissões...</div>
-              ) : !selectedPerfilId ? (
-                <div style={emptyText}>Selecione um perfil para editar.</div>
-              ) : (
-                <div style={permissionTable}>
-                  <div style={permissionHeaderRow}>
-                    <div>Página</div>
-                    <div style={permissionHeaderCell}>Acessar</div>
-                    <div style={permissionHeaderCell}>Criar</div>
-                    <div style={permissionHeaderCell}>Editar</div>
-                    <div style={permissionHeaderCell}>Excluir</div>
-                  </div>
-
-                  {paginasSistema.map((pagina) => {
-                    const permissao = permissoesDraft[pagina.pagina_key] || { ...emptyPermissao };
-
-                    return (
-                      <div key={pagina.pagina_key} style={permissionRow}>
-                        <div>
-                          <div style={permissionPageName}>{pagina.nome}</div>
-                          <div style={permissionRoute}>{pagina.rota}</div>
-                        </div>
-
-                        <CheckCell
-                          checked={permissao.pode_acessar}
-                          onClick={() => handleTogglePermissao(pagina.pagina_key, "pode_acessar")}
-                        />
-
-                        <CheckCell
-                          checked={permissao.pode_criar}
-                          onClick={() => handleTogglePermissao(pagina.pagina_key, "pode_criar")}
-                        />
-
-                        <CheckCell
-                          checked={permissao.pode_editar}
-                          onClick={() => handleTogglePermissao(pagina.pagina_key, "pode_editar")}
-                        />
-
-                        <CheckCell
-                          checked={permissao.pode_excluir}
-                          onClick={() => handleTogglePermissao(pagina.pagina_key, "pode_excluir")}
-                        />
+              <div style={{ marginTop: "14px" }}>
+                {loadingCategorias ? (
+                  <div style={emptyText}>Carregando categorias...</div>
+                ) : categorias.length === 0 ? (
+                  <div style={emptyText}>Nenhuma categoria cadastrada.</div>
+                ) : (
+                  <div style={list}>
+                    {categorias.map((categoria) => (
+                      <div key={categoria.categoria_id} style={listItem}>
+                        <span>{categoria.nome}</span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={card}>
+              <h3 style={sectionTitle}>🧩 Segmentos</h3>
+
+              <div style={grid2}>
+                <div>
+                  <label style={label}>Nome do segmento</label>
+                  <input
+                    style={input}
+                    placeholder="Ex: Academia"
+                    value={novoSegmento}
+                    onChange={(e) => setNovoSegmento(e.target.value)}
+                  />
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
 
-        <div style={card}>
-          <h3 style={sectionTitle}>🗂️ Categorias</h3>
-
-          <div style={rowForm}>
-            <input
-              style={input}
-              placeholder="Ex: Fitness"
-              value={novaCategoria}
-              onChange={(e) => setNovaCategoria(e.target.value)}
-            />
-
-            <button onClick={handleCreateCategoria} disabled={savingCategoria} style={saveButton}>
-              {savingCategoria ? "Salvando..." : "Adicionar categoria"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: "14px" }}>
-            {loadingCategorias ? (
-              <div style={emptyText}>Carregando categorias...</div>
-            ) : categorias.length === 0 ? (
-              <div style={emptyText}>Nenhuma categoria cadastrada.</div>
-            ) : (
-              <div style={list}>
-                {categorias.map((categoria) => (
-                  <div key={categoria.categoria_id} style={listItem}>
-                    <span>{categoria.nome}</span>
-                  </div>
-                ))}
+                <div>
+                  <label style={label}>Categoria do segmento</label>
+                  <select
+                    style={input}
+                    value={categoriaSegmentoId}
+                    onChange={(e) => setCategoriaSegmentoId(e.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {categorias.map((categoria) => (
+                      <option
+                        key={categoria.categoria_id}
+                        value={categoria.categoria_id}
+                      >
+                        {categoria.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        <div style={card}>
-          <h3 style={sectionTitle}>🧩 Segmentos</h3>
-
-          <div style={grid2}>
-            <div>
-              <label style={label}>Nome do segmento</label>
-              <input
-                style={input}
-                placeholder="Ex: Academia"
-                value={novoSegmento}
-                onChange={(e) => setNovoSegmento(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label style={label}>Categoria do segmento</label>
-              <select
-                style={input}
-                value={categoriaSegmentoId}
-                onChange={(e) => setCategoriaSegmentoId(e.target.value)}
-              >
-                <option value="">Selecione</option>
-                {categorias.map((categoria) => (
-                  <option key={categoria.categoria_id} value={categoria.categoria_id}>
-                    {categoria.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "10px" }}>
-            <button onClick={handleCreateSegmento} disabled={savingSegmento} style={saveButton}>
-              {savingSegmento ? "Salvando..." : "Adicionar segmento"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: "14px" }}>
-            {loadingSegmentos ? (
-              <div style={emptyText}>Carregando segmentos...</div>
-            ) : segmentosComCategoria.length === 0 ? (
-              <div style={emptyText}>Nenhum segmento cadastrado.</div>
-            ) : (
-              <div style={list}>
-                {segmentosComCategoria.map((segmento) => (
-                  <div key={segmento.segmento_id} style={listItem}>
-                    <span>
-                      {segmento.nome}{" "}
-                      <span style={{ color: "#6b7280" }}>— {segmento.categoriaNome}</span>
-                    </span>
-                  </div>
-                ))}
+              <div style={{ marginTop: "10px" }}>
+                <button
+                  type="button"
+                  onClick={handleCreateSegmento}
+                  disabled={savingSegmento}
+                  style={saveButton}
+                >
+                  {savingSegmento ? "Salvando..." : "Adicionar segmento"}
+                </button>
               </div>
-            )}
-          </div>
-        </div>
 
-        <div style={card}>
-          <h3 style={sectionTitle}>🎤 Áreas Speaker</h3>
-
-          <div style={grid2}>
-            <div>
-              <label style={label}>Nome da área</label>
-              <input
-                style={input}
-                placeholder="Ex: Treino funcional"
-                value={novaArea}
-                onChange={(e) => setNovaArea(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label style={label}>Segmento</label>
-              <select style={input} value={segmentoAreaId} onChange={(e) => setSegmentoAreaId(e.target.value)}>
-                <option value="">Selecione</option>
-                {segmentos.map((segmento) => (
-                  <option key={segmento.segmento_id} value={segmento.segmento_id}>
-                    {segmento.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "10px" }}>
-            <button onClick={handleCreateArea} disabled={savingArea} style={saveButton}>
-              {savingArea ? "Salvando..." : "Adicionar área"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: "14px" }}>
-            {loadingAreas ? (
-              <div style={emptyText}>Carregando áreas...</div>
-            ) : areasComSegmento.length === 0 ? (
-              <div style={emptyText}>Nenhuma área cadastrada.</div>
-            ) : (
-              <div style={list}>
-                {areasComSegmento.map((area) => (
-                  <div key={area.area_speaker_id} style={listItem}>
-                    <span>
-                      {area.nome}{" "}
-                      <span style={{ color: "#6b7280" }}>— {area.segmentoNome}</span>
-                    </span>
+              <div style={{ marginTop: "14px" }}>
+                {loadingSegmentos ? (
+                  <div style={emptyText}>Carregando segmentos...</div>
+                ) : segmentosComCategoria.length === 0 ? (
+                  <div style={emptyText}>Nenhum segmento cadastrado.</div>
+                ) : (
+                  <div style={list}>
+                    {segmentosComCategoria.map((segmento) => (
+                      <div key={segmento.segmento_id} style={listItem}>
+                        <span>
+                          {segmento.nome}{" "}
+                          <span style={{ color: "#6b7280" }}>
+                            — {segmento.categoriaNome}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
-        </div>
-
-        <div style={card}>
-          <h3 style={sectionTitle}>🔔 Notificações</h3>
-
-          <div style={toggleRow}>
-            <span>Novos creators cadastrados</span>
-            <Toggle defaultOn />
-          </div>
-
-          <div style={toggleRow}>
-            <span>Creators aprovados/reprovados</span>
-            <Toggle defaultOn />
-          </div>
-
-          <div style={toggleRow}>
-            <span>Relatórios semanais</span>
-            <Toggle defaultOn />
-          </div>
-
-          <div style={toggleRow}>
-            <span>Campanhas finalizadas</span>
-            <Toggle defaultOn />
-          </div>
-
-          <div style={toggleRow}>
-            <span>Alertas de performance</span>
-            <Toggle defaultOn />
-          </div>
-        </div>
-
-        <div style={card}>
-          <h3 style={sectionTitle}>🔒 Segurança</h3>
-
-          <div style={grid2}>
-            <div>
-              <label style={label}>Senha atual</label>
-              <input style={input} type="password" defaultValue="********" />
             </div>
 
-            <div>
-              <label style={label}>Nova senha</label>
-              <input style={input} type="password" />
+            <div style={card}>
+              <h3 style={sectionTitle}>🎤 Áreas Speaker</h3>
+
+              <div style={grid2}>
+                <div>
+                  <label style={label}>Nome da área</label>
+                  <input
+                    style={input}
+                    placeholder="Ex: Treino funcional"
+                    value={novaArea}
+                    onChange={(e) => setNovaArea(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label style={label}>Segmento</label>
+                  <select
+                    style={input}
+                    value={segmentoAreaId}
+                    onChange={(e) => setSegmentoAreaId(e.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {segmentos.map((segmento) => (
+                      <option
+                        key={segmento.segmento_id}
+                        value={segmento.segmento_id}
+                      >
+                        {segmento.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginTop: "10px" }}>
+                <button
+                  type="button"
+                  onClick={handleCreateArea}
+                  disabled={savingArea}
+                  style={saveButton}
+                >
+                  {savingArea ? "Salvando..." : "Adicionar área"}
+                </button>
+              </div>
+
+              <div style={{ marginTop: "14px" }}>
+                {loadingAreas ? (
+                  <div style={emptyText}>Carregando áreas...</div>
+                ) : areasComSegmento.length === 0 ? (
+                  <div style={emptyText}>Nenhuma área cadastrada.</div>
+                ) : (
+                  <div style={list}>
+                    {areasComSegmento.map((area) => (
+                      <div key={area.area_speaker_id} style={listItem}>
+                        <span>
+                          {area.nome}{" "}
+                          <span style={{ color: "#6b7280" }}>
+                            — {area.segmentoNome}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "perfis" && (
+          <div style={card}>
+            <h3 style={sectionTitle}>🔐 Perfis de acesso</h3>
+            <p style={cardDescription}>
+              Configure quais páginas cada perfil pode acessar. O relacionamento
+              da pessoa continua separado: Colaborador ou Terceirizado.
+            </p>
+
+            <div style={accessGrid}>
+              <div style={profileColumn}>
+                <div style={smallSectionTitle}>Perfis da empresa</div>
+
+                {loadingAcessos ? (
+                  <div style={emptyText}>Carregando perfis...</div>
+                ) : perfisAcesso.length === 0 ? (
+                  <div style={emptyText}>Nenhum perfil cadastrado.</div>
+                ) : (
+                  <div style={profileList}>
+                    {perfisAcesso.map((perfil) => (
+                      <button
+                        key={perfil.perfil_acesso_id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedPerfilId(perfil.perfil_acesso_id)
+                        }
+                        style={
+                          selectedPerfilId === perfil.perfil_acesso_id
+                            ? profileButtonActive
+                            : profileButton
+                        }
+                      >
+                        <span style={profileName}>
+                          {getPerfilNomeVisual(perfil)}
+                        </span>
+                        <span style={profileMeta}>
+                          {perfil.sistema ? "Padrão" : "Personalizado"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div style={newProfileBox}>
+                  <div style={smallSectionTitle}>Criar novo perfil</div>
+
+                  <input
+                    style={input}
+                    placeholder="Ex: Financeiro"
+                    value={novoPerfilNome}
+                    onChange={(e) => setNovoPerfilNome(e.target.value)}
+                  />
+
+                  <textarea
+                    style={{ ...textarea, marginTop: "8px" }}
+                    placeholder="Descrição opcional"
+                    value={novoPerfilDescricao}
+                    onChange={(e) => setNovoPerfilDescricao(e.target.value)}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleCreatePerfilAcesso}
+                    disabled={savingNovoPerfil}
+                    style={{ ...saveButton, marginTop: "8px", width: "100%" }}
+                  >
+                    {savingNovoPerfil ? "Criando..." : "Criar perfil"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={permissionsColumn}>
+                <div style={permissionsHeader}>
+                  <div>
+                    <div style={smallSectionTitle}>Permissões</div>
+                    <div style={selectedProfileName}>
+                      {selectedPerfil
+                        ? getPerfilNomeVisual(selectedPerfil)
+                        : "Selecione um perfil"}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSalvarPermissoes}
+                    disabled={savingPermissoes || !selectedPerfilId}
+                    style={saveButton}
+                  >
+                    {savingPermissoes ? "Salvando..." : "Salvar permissões"}
+                  </button>
+                </div>
+
+                {loadingAcessos ? (
+                  <div style={emptyText}>Carregando permissões...</div>
+                ) : !selectedPerfilId ? (
+                  <div style={emptyText}>Selecione um perfil para editar.</div>
+                ) : (
+                  <div style={permissionTable}>
+                    <div style={permissionHeaderRow}>
+                      <div>Página</div>
+                      <div style={permissionHeaderCell}>Acessar</div>
+                      <div style={permissionHeaderCell}>Criar</div>
+                      <div style={permissionHeaderCell}>Editar</div>
+                      <div style={permissionHeaderCell}>Excluir</div>
+                    </div>
+
+                    {paginasSistema.map((pagina) => {
+                      const permissao = permissoesDraft[pagina.pagina_key] || {
+                        ...emptyPermissao,
+                      };
+
+                      return (
+                        <div key={pagina.pagina_key} style={permissionRow}>
+                          <div>
+                            <div style={permissionPageName}>{pagina.nome}</div>
+                            <div style={permissionRoute}>{pagina.rota}</div>
+                          </div>
+
+                          <CheckCell
+                            checked={permissao.pode_acessar}
+                            onClick={() =>
+                              handleTogglePermissao(
+                                pagina.pagina_key,
+                                "pode_acessar",
+                              )
+                            }
+                          />
+
+                          <CheckCell
+                            checked={permissao.pode_criar}
+                            onClick={() =>
+                              handleTogglePermissao(
+                                pagina.pagina_key,
+                                "pode_criar",
+                              )
+                            }
+                          />
+
+                          <CheckCell
+                            checked={permissao.pode_editar}
+                            onClick={() =>
+                              handleTogglePermissao(
+                                pagina.pagina_key,
+                                "pode_editar",
+                              )
+                            }
+                          />
+
+                          <CheckCell
+                            checked={permissao.pode_excluir}
+                            onClick={() =>
+                              handleTogglePermissao(
+                                pagina.pagina_key,
+                                "pode_excluir",
+                              )
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === "notificacoes" && (
+          <div style={card}>
+            <h3 style={sectionTitle}>🔔 Notificações</h3>
+
+            <div style={toggleRow}>
+              <span>Novos creators cadastrados</span>
+              <Toggle defaultOn />
+            </div>
+
+            <div style={toggleRow}>
+              <span>Creators aprovados/reprovados</span>
+              <Toggle defaultOn />
+            </div>
+
+            <div style={toggleRow}>
+              <span>Relatórios semanais</span>
+              <Toggle defaultOn />
+            </div>
+
+            <div style={toggleRow}>
+              <span>Campanhas finalizadas</span>
+              <Toggle defaultOn />
+            </div>
+
+            <div style={toggleRow}>
+              <span>Alertas de performance</span>
+              <Toggle defaultOn />
+            </div>
+          </div>
+        )}
+
+        {activeTab === "seguranca" && (
+          <div style={card}>
+            <h3 style={sectionTitle}>🔒 Segurança</h3>
+
+            <div style={grid2}>
+              <div>
+                <label style={label}>Senha atual</label>
+                <input style={input} type="password" defaultValue="********" />
+              </div>
+
+              <div>
+                <label style={label}>Nova senha</label>
+                <input style={input} type="password" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
 }
 
-function CheckCell({ checked, onClick }: { checked: boolean; onClick: () => void }) {
+function CheckCell({
+  checked,
+  onClick,
+}: {
+  checked: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button type="button" onClick={onClick} style={checked ? checkButtonActive : checkButton}>
+    <button
+      type="button"
+      onClick={onClick}
+      style={checked ? checkButtonActive : checkButton}
+    >
       {checked ? "✓" : ""}
     </button>
   );
@@ -1020,6 +1368,35 @@ const subtitle = {
   marginTop: "4px",
 };
 
+const tabsRow = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap" as const,
+  marginBottom: "16px",
+};
+
+const tabButton = {
+  background: "white",
+  color: "#6b7280",
+  border: "1px solid #e5e7eb",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const tabButtonActive = {
+  background: "#ccfbf1",
+  color: "#0f766e",
+  border: "1px solid #14b8a6",
+  borderRadius: "999px",
+  padding: "8px 12px",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
 const card = {
   background: "white",
   border: "1px solid #e5e7eb",
@@ -1068,6 +1445,33 @@ const input = {
   padding: "8px 10px",
   fontSize: "12px",
   boxSizing: "border-box" as const,
+};
+
+const helperText = {
+  fontSize: "10px",
+  color: "#6b7280",
+  marginTop: "4px",
+};
+
+const ruleBox = {
+  marginTop: "14px",
+  background: "#f8fafc",
+  border: "1px solid #e5e7eb",
+  borderRadius: "8px",
+  padding: "10px 12px",
+};
+
+const ruleTitle = {
+  fontSize: "11px",
+  fontWeight: 700,
+  color: "#111827",
+  marginBottom: "4px",
+};
+
+const ruleText = {
+  fontSize: "12px",
+  color: "#475569",
+  lineHeight: 1.4,
 };
 
 const textarea = {
