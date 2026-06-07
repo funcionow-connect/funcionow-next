@@ -15,6 +15,14 @@ type Projeto = {
   nome: string;
 };
 
+type MembroEquipe = {
+  membro_id: string;
+  nome: string;
+  cargo: string | null;
+  tipo_membro: string | null;
+  status: string | null;
+};
+
 type Reuniao = {
   reuniao_id: string;
   empresa_id: string;
@@ -37,6 +45,16 @@ type Reuniao = {
   } | null;
 };
 
+type TarefaGerada = {
+  id: string;
+  titulo: string;
+  descricao: string;
+  responsavel_membro_id: string;
+  prioridade: "baixa" | "media" | "alta" | "urgente";
+  data_limite: string;
+  criar: boolean;
+};
+
 const tipoOptions = [
   { value: "call", label: "Call" },
   { value: "reuniao_interna", label: "Reunião interna" },
@@ -45,9 +63,17 @@ const tipoOptions = [
   { value: "outro", label: "Outro" },
 ] as const;
 
+const prioridadeOptions = [
+  { value: "baixa", label: "Baixa" },
+  { value: "media", label: "Média" },
+  { value: "alta", label: "Alta" },
+  { value: "urgente", label: "Urgente" },
+] as const;
+
 export default function ReunioesPage() {
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
   const [reunioes, setReunioes] = useState<Reuniao[]>([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -67,6 +93,11 @@ export default function ReunioesPage() {
   const [decisoes, setDecisoes] = useState("");
   const [proximosPassos, setProximosPassos] = useState("");
   const [transcricao, setTranscricao] = useState("");
+
+  const [reuniaoSelecionada, setReuniaoSelecionada] =
+    useState<Reuniao | null>(null);
+  const [tarefasGeradas, setTarefasGeradas] = useState<TarefaGerada[]>([]);
+  const [salvandoTarefas, setSalvandoTarefas] = useState(false);
 
   const reunioesFiltradas = useMemo(() => {
     return reunioes.filter((reuniao) => {
@@ -128,11 +159,18 @@ export default function ReunioesPage() {
 
       setUsuarioAtual(usuario);
 
-      const [projetosResult, reunioesResult] = await Promise.all([
+      const [projetosResult, membrosResult, reunioesResult] = await Promise.all([
         supabase
           .from("projetos")
           .select("projeto_id, nome")
           .eq("empresa_id", usuario.empresa_id)
+          .order("nome", { ascending: true }),
+
+        supabase
+          .from("membros_equipe")
+          .select("membro_id, nome, cargo, tipo_membro, status")
+          .eq("empresa_id", usuario.empresa_id)
+          .eq("status", "ativo")
           .order("nome", { ascending: true }),
 
         supabase
@@ -156,6 +194,12 @@ export default function ReunioesPage() {
         return;
       }
 
+      if (membrosResult.error) {
+        console.error("Erro ao carregar membros da equipe:", membrosResult.error);
+        alert("Não foi possível carregar os responsáveis.");
+        return;
+      }
+
       if (reunioesResult.error) {
         console.error("Erro ao carregar reuniões:", reunioesResult.error);
         alert("Não foi possível carregar as reuniões.");
@@ -163,6 +207,7 @@ export default function ReunioesPage() {
       }
 
       setProjetos((projetosResult.data ?? []) as Projeto[]);
+      setMembrosEquipe((membrosResult.data ?? []) as MembroEquipe[]);
       setReunioes((reunioesResult.data ?? []) as Reuniao[]);
     } catch (error) {
       console.error("Erro inesperado ao carregar reuniões:", error);
@@ -239,71 +284,135 @@ export default function ReunioesPage() {
     }
   };
 
-  const gerarTarefaDaReuniao = async (reuniao: Reuniao) => {
-  if (!usuarioAtual) {
-    alert("Usuário não carregado.");
-    return;
-  }
+  const abrirRevisaoTarefas = (reuniao: Reuniao) => {
+    const textoBase =
+      reuniao.proximos_passos ||
+      reuniao.decisoes ||
+      reuniao.resumo ||
+      "";
 
-  const textoBase =
-    reuniao.proximos_passos ||
-    reuniao.decisoes ||
-    reuniao.resumo ||
-    "";
-
-  if (!textoBase.trim()) {
-    alert("Esta reunião não possui próximos passos, decisões ou resumo para gerar tarefas.");
-    return;
-  }
-
-  const itens = textoBase
-    .split(/\r?\n/)
-    .map((item) =>
-      item
-        .replace(/^[-•*]\s*/, "")
-        .replace(/^\d+[.)]\s*/, "")
-        .trim()
-    )
-    .filter((item) => item.length > 0);
-
-  if (itens.length === 0) {
-    alert("Não encontrei itens válidos para gerar tarefas.");
-    return;
-  }
-
-  const confirmar = window.confirm(
-    `Deseja criar ${itens.length} tarefa(s) a partir da reunião "${reuniao.titulo}"?`
-  );
-
-  if (!confirmar) return;
-
-  try {
-    const tarefasParaInserir = itens.map((item) => ({
-      empresa_id: usuarioAtual.empresa_id,
-      projeto_id: reuniao.projeto_id || null,
-      titulo: item.slice(0, 120),
-      descricao: `Tarefa criada a partir da reunião: ${reuniao.titulo}`,
-      status: "a_fazer",
-      prioridade: "media",
-      responsavel_id: usuarioAtual.usuario_id,
-      criado_por: usuarioAtual.usuario_id,
-    }));
-
-    const { error } = await supabase.from("tarefas").insert(tarefasParaInserir);
-
-    if (error) {
-      console.error("Erro ao gerar tarefas da reunião:", error);
-      alert("Não foi possível gerar as tarefas.");
+    if (!textoBase.trim()) {
+      alert(
+        "Esta reunião não possui próximos passos, decisões ou resumo para gerar tarefas."
+      );
       return;
     }
 
-    alert(`${itens.length} tarefa(s) criada(s) com sucesso.`);
-    window.location.href = "/operacao/tarefas";
-  } catch (error) {
-    console.error("Erro inesperado ao gerar tarefas:", error);
-    alert("Erro inesperado ao gerar tarefas.");
-  }
-};
+    const itens = textoBase
+      .split(/\r?\n/)
+      .map((item) =>
+        item
+          .replace(/^[-•*]\s*/, "")
+          .replace(/^\d+[.)]\s*/, "")
+          .trim()
+      )
+      .filter((item) => item.length > 0);
+
+    if (itens.length === 0) {
+      alert("Não encontrei itens válidos para gerar tarefas.");
+      return;
+    }
+
+    const novasTarefas: TarefaGerada[] = itens.map((item, index) => ({
+      id: `${reuniao.reuniao_id}-${index}`,
+      titulo: item.slice(0, 120),
+      descricao: `Tarefa criada a partir da reunião: ${reuniao.titulo}`,
+      responsavel_membro_id: "",
+      prioridade: "media",
+      data_limite: "",
+      criar: true,
+    }));
+
+    setReuniaoSelecionada(reuniao);
+    setTarefasGeradas(novasTarefas);
+
+    setTimeout(() => {
+      document
+        .getElementById("painel-revisao-tarefas")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  const atualizarTarefaGerada = (
+    id: string,
+    campo: keyof TarefaGerada,
+    valor: string | boolean
+  ) => {
+    setTarefasGeradas((lista) =>
+      lista.map((tarefa) =>
+        tarefa.id === id
+          ? ({ ...tarefa, [campo]: valor } as TarefaGerada)
+          : tarefa
+      )
+    );
+  };
+
+  const cancelarRevisaoTarefas = () => {
+    setReuniaoSelecionada(null);
+    setTarefasGeradas([]);
+  };
+
+  const salvarTarefasGeradas = async () => {
+    if (!usuarioAtual) {
+      alert("Usuário não carregado.");
+      return;
+    }
+
+    if (!reuniaoSelecionada) {
+      alert("Nenhuma reunião selecionada.");
+      return;
+    }
+
+    const tarefasParaCriar = tarefasGeradas.filter((tarefa) => tarefa.criar);
+
+    if (tarefasParaCriar.length === 0) {
+      alert("Selecione pelo menos uma tarefa para criar.");
+      return;
+    }
+
+    const tarefaSemTitulo = tarefasParaCriar.find(
+      (tarefa) => !tarefa.titulo.trim()
+    );
+
+    if (tarefaSemTitulo) {
+      alert("Todas as tarefas selecionadas precisam ter título.");
+      return;
+    }
+
+    try {
+      setSalvandoTarefas(true);
+
+      const payload = tarefasParaCriar.map((tarefa) => ({
+        empresa_id: usuarioAtual.empresa_id,
+        projeto_id: reuniaoSelecionada.projeto_id || null,
+        titulo: tarefa.titulo.trim().slice(0, 120),
+        descricao: tarefa.descricao.trim() || null,
+        status: "a_fazer",
+        prioridade: tarefa.prioridade,
+        data_limite: tarefa.data_limite || null,
+        responsavel_id: usuarioAtual.usuario_id,
+        responsavel_membro_id: tarefa.responsavel_membro_id || null,
+        criado_por: usuarioAtual.usuario_id,
+      }));
+
+      const { error } = await supabase.from("tarefas").insert(payload);
+
+      if (error) {
+        console.error("Erro ao criar tarefas:", error);
+        alert("Não foi possível criar as tarefas.");
+        return;
+      }
+
+      alert(`${payload.length} tarefa(s) criada(s) com sucesso.`);
+      cancelarRevisaoTarefas();
+      window.location.href = "/operacao/tarefas";
+    } catch (error) {
+      console.error("Erro inesperado ao criar tarefas:", error);
+      alert("Erro inesperado ao criar tarefas.");
+    } finally {
+      setSalvandoTarefas(false);
+    }
+  };
 
   useEffect(() => {
     carregarDados();
@@ -366,19 +475,19 @@ export default function ReunioesPage() {
         </header>
 
         <section
-  style={{
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: "24px",
-    alignItems: "flex-start",
-  }}
->
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr",
+            gap: "24px",
+            alignItems: "flex-start",
+          }}
+        >
           <aside
-  style={{
-    ...cardStyle,
-    maxWidth: "100%",
-  }}
->
+            style={{
+              ...cardStyle,
+              maxWidth: "100%",
+            }}
+          >
             <h2
               style={{
                 margin: "0 0 16px",
@@ -390,17 +499,19 @@ export default function ReunioesPage() {
             </h2>
 
             <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "14px",
-  }}
->
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "14px",
+              }}
+            >
               <div>
                 <label style={labelStyle}>Título</label>
                 <input
                   value={titulo}
-                  onChange={(event) => setTitulo(event.target.value.slice(0, 120))}
+                  onChange={(event) =>
+                    setTitulo(event.target.value.slice(0, 120))
+                  }
                   maxLength={120}
                   placeholder="Ex: Call de alinhamento inicial Burble Fresh"
                   style={inputStyle}
@@ -427,7 +538,9 @@ export default function ReunioesPage() {
                 <label style={labelStyle}>Tipo</label>
                 <select
                   value={tipo}
-                  onChange={(event) => setTipo(event.target.value as Reuniao["tipo"])}
+                  onChange={(event) =>
+                    setTipo(event.target.value as Reuniao["tipo"])
+                  }
                   style={inputStyle}
                 >
                   {tipoOptions.map((option) => (
@@ -515,7 +628,7 @@ export default function ReunioesPage() {
                   value={proximosPassos}
                   onChange={(event) => setProximosPassos(event.target.value)}
                   rows={3}
-                  placeholder="Pendências, responsáveis e prazos."
+                  placeholder="Uma tarefa por linha. Ex: Criar lista de 30 speakers de corrida"
                   style={{ ...inputStyle, resize: "vertical" }}
                 />
               </div>
@@ -531,27 +644,26 @@ export default function ReunioesPage() {
                 />
               </div>
 
-
               <div style={{ gridColumn: "1 / -1" }}>
-  <button
-    onClick={criarReuniao}
-    disabled={salvando}
-    style={{
-      width: "100%",
-      border: "none",
-      borderRadius: "10px",
-      padding: "11px 14px",
-      background: "linear-gradient(to right, #0f766e, #14b8a6)",
-      color: "white",
-      fontSize: "14px",
-      fontWeight: 800,
-      cursor: salvando ? "not-allowed" : "pointer",
-      opacity: salvando ? 0.75 : 1,
-    }}
-  >
-    {salvando ? "Salvando..." : "Registrar reunião"}
-  </button>
-</div>
+                <button
+                  onClick={criarReuniao}
+                  disabled={salvando}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "11px 14px",
+                    background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                    color: "white",
+                    fontSize: "14px",
+                    fontWeight: 800,
+                    cursor: salvando ? "not-allowed" : "pointer",
+                    opacity: salvando ? 0.75 : 1,
+                  }}
+                >
+                  {salvando ? "Salvando..." : "Registrar reunião"}
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -669,35 +781,41 @@ export default function ReunioesPage() {
                         </div>
                       </div>
 
-                     <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-  <button
-    type="button"
-    onClick={() => gerarTarefaDaReuniao(reuniao)}
-    style={{
-      border: "1px solid #0f766e",
-      borderRadius: "10px",
-      background: "white",
-      color: "#0f766e",
-      padding: "8px 10px",
-      fontSize: "13px",
-      fontWeight: 800,
-      cursor: "pointer",
-    }}
-  >
-    Gerar tarefa
-  </button>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => abrirRevisaoTarefas(reuniao)}
+                          style={{
+                            border: "1px solid #0f766e",
+                            borderRadius: "10px",
+                            background: "white",
+                            color: "#0f766e",
+                            padding: "8px 10px",
+                            fontSize: "13px",
+                            fontWeight: 800,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Gerar tarefas
+                        </button>
 
-  {reuniao.link_reuniao && (
-    <a
-      href={reuniao.link_reuniao}
-      target="_blank"
-      rel="noreferrer"
-      style={linkStyle}
-    >
-      Abrir link
-    </a>
-  )}
-</div>
+                        {reuniao.link_reuniao && (
+                          <a
+                            href={reuniao.link_reuniao}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={linkStyle}
+                          >
+                            Abrir link
+                          </a>
+                        )}
+                      </div>
                     </div>
 
                     {reuniao.pauta && (
@@ -713,7 +831,10 @@ export default function ReunioesPage() {
                     )}
 
                     {reuniao.proximos_passos && (
-                      <TextBlock title="Próximos passos" text={reuniao.proximos_passos} />
+                      <TextBlock
+                        title="Próximos passos"
+                        text={reuniao.proximos_passos}
+                      />
                     )}
 
                     {reuniao.transcricao && (
@@ -748,6 +869,248 @@ export default function ReunioesPage() {
             )}
           </section>
         </section>
+
+        {reuniaoSelecionada && (
+          <section
+            id="painel-revisao-tarefas"
+            style={{
+              marginTop: "24px",
+              background: "white",
+              border: "1px solid #e5e7eb",
+              borderRadius: "16px",
+              padding: "18px",
+              boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "16px",
+                alignItems: "flex-start",
+                marginBottom: "16px",
+              }}
+            >
+              <div>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "18px",
+                    fontWeight: 800,
+                  }}
+                >
+                  Revisar tarefas geradas
+                </h2>
+
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    color: "#64748b",
+                    fontSize: "13px",
+                  }}
+                >
+                  Reunião: {reuniaoSelecionada.titulo}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={cancelarRevisaoTarefas}
+                style={secondaryButtonStyle}
+              >
+                Cancelar
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              {tarefasGeradas.map((tarefa, index) => (
+                <article
+                  key={tarefa.id}
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "14px",
+                    padding: "14px",
+                    background: tarefa.criar ? "#ffffff" : "#f8fafc",
+                    opacity: tarefa.criar ? 1 : 0.65,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <strong style={{ fontSize: "14px" }}>
+                      Tarefa {index + 1}
+                    </strong>
+
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "13px",
+                        color: "#475569",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={tarefa.criar}
+                        onChange={(event) =>
+                          atualizarTarefaGerada(
+                            tarefa.id,
+                            "criar",
+                            event.target.checked
+                          )
+                        }
+                      />
+                      Criar
+                    </label>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1.2fr 0.8fr 0.6fr 0.6fr",
+                      gap: "10px",
+                    }}
+                  >
+                    <div>
+                      <label style={labelStyle}>Título</label>
+                      <input
+                        value={tarefa.titulo}
+                        onChange={(event) =>
+                          atualizarTarefaGerada(
+                            tarefa.id,
+                            "titulo",
+                            event.target.value.slice(0, 120)
+                          )
+                        }
+                        maxLength={120}
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Responsável</label>
+                      <select
+                        value={tarefa.responsavel_membro_id}
+                        onChange={(event) =>
+                          atualizarTarefaGerada(
+                            tarefa.id,
+                            "responsavel_membro_id",
+                            event.target.value
+                          )
+                        }
+                        style={inputStyle}
+                      >
+                        <option value="">Sem responsável</option>
+                        {membrosEquipe.map((membro) => (
+                          <option key={membro.membro_id} value={membro.membro_id}>
+                            {membro.nome}
+                            {membro.cargo ? ` — ${membro.cargo}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Prioridade</label>
+                      <select
+                        value={tarefa.prioridade}
+                        onChange={(event) =>
+                          atualizarTarefaGerada(
+                            tarefa.id,
+                            "prioridade",
+                            event.target.value
+                          )
+                        }
+                        style={inputStyle}
+                      >
+                        {prioridadeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Prazo</label>
+                      <input
+                        type="date"
+                        value={tarefa.data_limite}
+                        onChange={(event) =>
+                          atualizarTarefaGerada(
+                            tarefa.id,
+                            "data_limite",
+                            event.target.value
+                          )
+                        }
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "10px" }}>
+                    <label style={labelStyle}>Descrição</label>
+                    <textarea
+                      value={tarefa.descricao}
+                      onChange={(event) =>
+                        atualizarTarefaGerada(
+                          tarefa.id,
+                          "descricao",
+                          event.target.value
+                        )
+                      }
+                      rows={2}
+                      style={{ ...inputStyle, resize: "vertical" }}
+                    />
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={cancelarRevisaoTarefas}
+                style={secondaryButtonStyle}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={salvarTarefasGeradas}
+                disabled={salvandoTarefas}
+                style={{
+                  border: "none",
+                  borderRadius: "10px",
+                  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                  color: "white",
+                  padding: "10px 14px",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: salvandoTarefas ? "not-allowed" : "pointer",
+                  opacity: salvandoTarefas ? 0.75 : 1,
+                }}
+              >
+                {salvandoTarefas ? "Criando..." : "Criar tarefas selecionadas"}
+              </button>
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
@@ -852,6 +1215,17 @@ const inputStyle: React.CSSProperties = {
   color: "#111827",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  background: "white",
+  color: "#64748b",
+  padding: "8px 10px",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const emptyStateStyle: React.CSSProperties = {
