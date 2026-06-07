@@ -45,13 +45,14 @@ const fallbackMenuItems: MenuItem[] = [
   { label: "Academy", href: "/academy", match: "/academy", ordem: 5 },
   { label: "Rewards", href: "/rewards", match: "/rewards", ordem: 6 },
   { label: "Community", href: "/community", match: "/community", ordem: 7 },
-  { label: "IA Insights", href: "/insights", match: "/insights", ordem: 8 },
-  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 9 },
+  { label: "Operação", href: "/operacao", match: "/operacao", ordem: 8 },
+  { label: "IA Insights", href: "/insights", match: "/insights", ordem: 9 },
+  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 10 },
   {
     label: "Configurações",
     href: "/configuracoes",
     match: "/configuracoes",
-    ordem: 10,
+    ordem: 11,
   },
   { label: "Meu Perfil", href: "/perfil", match: "/perfil", ordem: 99 },
 ];
@@ -344,18 +345,25 @@ const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
   }
 
   if (perfil === "suporte") {
-    return fallbackMenuItems.filter((item) =>
-      ["/dashboard", "/creators", "/avaliacoes", "/campanhas", "/perfil"].includes(
-        item.href,
-      ),
-    );
-  }
+  return fallbackMenuItems.filter((item) =>
+    [
+      "/dashboard",
+      "/creators",
+      "/avaliacoes",
+      "/campanhas",
+      "/operacao",
+      "/perfil",
+    ].includes(item.href),
+  );
+}
 
   if (perfil === "terceirizado") {
-    return fallbackMenuItems.filter((item) =>
-      ["/dashboard", "/creators", "/avaliacoes", "/perfil"].includes(item.href),
-    );
-  }
+  return fallbackMenuItems.filter((item) =>
+    ["/dashboard", "/creators", "/avaliacoes", "/operacao", "/perfil"].includes(
+      item.href,
+    ),
+  );
+}
 
   return fallbackMenuItems.filter((item) => item.href === "/perfil");
 };
