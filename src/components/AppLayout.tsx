@@ -429,6 +429,7 @@ const groupMenuItems = (items: MenuItem[]): MenuGroup[] => {
       label: "Outros",
       ordem: 99,
       items: outros,
+      defaultOpen: false,
     });
   }
 
