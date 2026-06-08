@@ -37,6 +37,13 @@ type MenuItem = {
   ordem: number;
 };
 
+type MenuGroup = {
+  label: string;
+  ordem: number;
+  items: MenuItem[];
+  defaultOpen?: boolean;
+};
+
 const fallbackMenuItems: MenuItem[] = [
   { label: "Dashboard", href: "/dashboard", match: "/dashboard", ordem: 1 },
   { label: "Creators", href: "/creators", match: "/creators", ordem: 2 },
@@ -237,6 +244,16 @@ export default function AppLayout({
     window.location.href = "/";
   };
 
+  const menuGroups = groupMenuItems(menuItems);
+
+  const isMenuItemActive = (item: MenuItem) => {
+    if (item.href === "/operacao") {
+      return pathname === "/operacao";
+    }
+
+    return pathname === item.href || pathname.startsWith(`${item.match}/`);
+  };
+
   if (loading) {
     return (
       <div style={loadingPage}>
@@ -266,19 +283,42 @@ export default function AppLayout({
           <nav style={nav}>
             {temEmpresa ? (
               <>
-                {menuItems.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.match}/`);
+                {menuGroups.map((group) => {
+                  const groupActive = group.items.some(isMenuItemActive);
 
                   return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      style={active ? navItemActiveStyle : navItemStyle}
+                    <details
+                      key={group.label}
+                      open={group.defaultOpen || groupActive}
+                      style={menuGroupStyle}
                     >
-                      <span>{item.label}</span>
-                    </a>
+                      <summary
+                        style={
+                          groupActive
+                            ? groupSummaryActiveStyle
+                            : groupSummaryStyle
+                        }
+                      >
+                        <span>{group.label}</span>
+                        <span style={chevronStyle}>▾</span>
+                      </summary>
+
+                      <div style={groupItemsStyle}>
+                        {group.items.map((item) => {
+                          const active = isMenuItemActive(item);
+
+                          return (
+                            <a
+                              key={item.href}
+                              href={item.href}
+                              style={active ? navItemActiveStyle : navItemStyle}
+                            >
+                              <span>{item.label}</span>
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </details>
                   );
                 })}
 
@@ -329,6 +369,72 @@ export default function AppLayout({
   );
 }
 
+const menuGroupDefinitions = [
+  {
+    label: "Administração",
+    ordem: 1,
+    hrefs: ["/dashboard", "/equipe", "/configuracoes", "/perfil"],
+  },
+  {
+    label: "Operação",
+    ordem: 2,
+    hrefs: [
+      "/operacao",
+      "/operacao/projetos",
+      "/operacao/tarefas",
+      "/operacao/reunioes",
+      "/operacao/calendario",
+      "/operacao/notas",
+    ],
+    defaultOpen: true,
+  },
+  {
+    label: "Community First",
+    ordem: 3,
+    hrefs: ["/creators", "/avaliacoes", "/community"],
+  },
+  {
+    label: "Crescimento",
+    ordem: 4,
+    hrefs: ["/campanhas", "/academy", "/rewards", "/insights"],
+  },
+];
+
+const groupMenuItems = (items: MenuItem[]): MenuGroup[] => {
+  const usedHrefs = new Set<string>();
+
+  const groups = menuGroupDefinitions
+    .map((group) => {
+      const groupItems = items
+        .filter((item) => group.hrefs.includes(item.href))
+        .sort((a, b) => {
+          return group.hrefs.indexOf(a.href) - group.hrefs.indexOf(b.href);
+        });
+
+      groupItems.forEach((item) => usedHrefs.add(item.href));
+
+      return {
+        label: group.label,
+        ordem: group.ordem,
+        items: groupItems,
+        defaultOpen: group.defaultOpen,
+      };
+    })
+    .filter((group) => group.items.length > 0);
+
+  const outros = items.filter((item) => !usedHrefs.has(item.href));
+
+  if (outros.length > 0) {
+    groups.push({
+      label: "Outros",
+      ordem: 99,
+      items: outros,
+    });
+  }
+
+  return groups.sort((a, b) => a.ordem - b.ordem);
+};
+
 const getInitials = (name: string) => {
   return name
     .split(" ")
@@ -345,25 +451,25 @@ const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
   }
 
   if (perfil === "suporte") {
-  return fallbackMenuItems.filter((item) =>
-    [
-      "/dashboard",
-      "/creators",
-      "/avaliacoes",
-      "/campanhas",
-      "/operacao",
-      "/perfil",
-    ].includes(item.href),
-  );
-}
+    return fallbackMenuItems.filter((item) =>
+      [
+        "/dashboard",
+        "/creators",
+        "/avaliacoes",
+        "/campanhas",
+        "/operacao",
+        "/perfil",
+      ].includes(item.href),
+    );
+  }
 
   if (perfil === "terceirizado") {
-  return fallbackMenuItems.filter((item) =>
-    ["/dashboard", "/creators", "/avaliacoes", "/operacao", "/perfil"].includes(
-      item.href,
-    ),
-  );
-}
+    return fallbackMenuItems.filter((item) =>
+      ["/dashboard", "/creators", "/avaliacoes", "/operacao", "/perfil"].includes(
+        item.href,
+      ),
+    );
+  }
 
   return fallbackMenuItems.filter((item) => item.href === "/perfil");
 };
@@ -383,16 +489,16 @@ const shell = {
 };
 
 const sidebar = {
-  width: "240px",
+  width: "250px",
   background:
-    "linear-gradient(180deg, var(--fc-sidebar) 0%, #0b0b12 100%)",
+    "linear-gradient(180deg, #230047 0%, #16002f 52%, #0c001b 100%)",
   color: "white",
   padding: "18px 14px",
   display: "flex",
   flexDirection: "column" as const,
   justifyContent: "space-between",
-  borderRight: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "12px 0 40px rgba(17,17,26,0.10)",
+  borderRight: "1px solid rgba(255,255,255,0.10)",
+  boxShadow: "14px 0 42px rgba(17,17,26,0.22)",
 };
 
 const brandBox = {
@@ -433,14 +539,52 @@ const brandSubtitle = {
 const nav = {
   display: "flex",
   flexDirection: "column" as const,
-  gap: "6px",
+  gap: "8px",
+};
+
+const menuGroupStyle = {
+  borderRadius: "14px",
+  overflow: "hidden",
+};
+
+const groupSummaryStyle = {
+  listStyle: "none",
+  cursor: "pointer",
+  padding: "10px 12px",
+  borderRadius: "12px",
+  color: "rgba(255,255,255,0.72)",
+  fontSize: "12px",
+  fontWeight: 800,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.07)",
+};
+
+const groupSummaryActiveStyle = {
+  ...groupSummaryStyle,
+  color: "#ffffff",
+  background: "rgba(198,255,0,0.13)",
+  border: "1px solid rgba(198,255,0,0.25)",
+};
+
+const groupItemsStyle = {
+  display: "grid",
+  gap: "5px",
+  padding: "7px 0 2px 10px",
+};
+
+const chevronStyle = {
+  fontSize: "11px",
+  opacity: 0.7,
 };
 
 const navItemStyle = {
-  padding: "10px 12px",
-  borderRadius: "999px",
-  fontSize: "13px",
-  color: "rgba(255,255,255,0.66)",
+  padding: "8px 10px",
+  borderRadius: "10px",
+  fontSize: "12px",
+  color: "rgba(255,255,255,0.62)",
   cursor: "pointer",
   textDecoration: "none",
   display: "flex",
@@ -451,11 +595,11 @@ const navItemStyle = {
 };
 
 const navItemActiveStyle = {
-  padding: "10px 12px",
-  borderRadius: "999px",
-  fontSize: "13px",
+  padding: "8px 10px",
+  borderRadius: "10px",
+  fontSize: "12px",
   color: "#111111",
-  background: "var(--fc-lime)",
+  background: "#c6ff00",
   cursor: "pointer",
   textDecoration: "none",
   display: "flex",
