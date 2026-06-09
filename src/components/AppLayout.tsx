@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -233,7 +234,6 @@ export default function AppLayout({
             "/perfil";
 
           window.location.href = rotaDestino;
-          return;
         }
       } catch (err) {
         console.error("Erro inesperado ao verificar acesso:", err);
@@ -301,7 +301,6 @@ export default function AppLayout({
             {temEmpresa ? (
               <>
                 {menuGroups.map((group) => {
-                  const groupActive = group.items.some(isMenuItemActive);
                   const groupOpen = currentOpenGroup === group.label;
 
                   return (
@@ -310,9 +309,7 @@ export default function AppLayout({
                         type="button"
                         onClick={() => toggleGroup(group.label)}
                         style={
-                          groupActive || groupOpen
-                            ? groupSummaryActiveStyle
-                            : groupSummaryStyle
+                          groupOpen ? groupSummaryActiveStyle : groupSummaryStyle
                         }
                       >
                         <span>{group.label}</span>
@@ -325,7 +322,7 @@ export default function AppLayout({
                             const active = isMenuItemActive(item);
 
                             return (
-                              <a
+                              <Link
                                 key={item.href}
                                 href={item.href}
                                 style={
@@ -335,7 +332,7 @@ export default function AppLayout({
                                 }
                               >
                                 <span>{item.label}</span>
-                              </a>
+                              </Link>
                             );
                           })}
                         </div>
@@ -353,7 +350,7 @@ export default function AppLayout({
               </>
             ) : (
               <>
-                <a
+                <Link
                   href="/perfil"
                   style={
                     pathname.startsWith("/perfil")
@@ -362,7 +359,7 @@ export default function AppLayout({
                   }
                 >
                   Meu Perfil
-                </a>
+                </Link>
 
                 <div style={infoBox}>
                   Você ainda não está vinculado a uma empresa.
