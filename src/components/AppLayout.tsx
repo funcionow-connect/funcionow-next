@@ -93,7 +93,7 @@ export default function AppLayout({
   useEffect(() => {
     const checkAccess = async () => {
       try {
-        setLoading(true);
+       // setLoading(true);
 
         const {
           data: { session },
