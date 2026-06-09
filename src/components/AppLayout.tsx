@@ -87,6 +87,10 @@ export default function AppLayout({
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   useEffect(() => {
+    setOpenGroup(null);
+  }, [pathname]);
+
+  useEffect(() => {
     const checkAccess = async () => {
       try {
         setLoading(true);
@@ -313,30 +317,44 @@ export default function AppLayout({
                         }
                       >
                         <span>{group.label}</span>
-                        <span style={chevronStyle}>{groupOpen ? "▾" : "▸"}</span>
+                        <span
+                          style={{
+                            ...chevronStyle,
+                            transform: groupOpen
+                              ? "rotate(0deg)"
+                              : "rotate(-90deg)",
+                          }}
+                        >
+                          ▾
+                        </span>
                       </button>
 
-                      {groupOpen && (
-                        <div style={groupItemsStyle}>
-                          {group.items.map((item) => {
-                            const active = isMenuItemActive(item);
+                      <div style={getGroupItemsStyle(groupOpen)}>
+                        {group.items.map((item) => {
+                          const active = isMenuItemActive(item);
 
-                            return (
-                              <Link
-                                key={item.href}
-                                href={item.href}
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              style={
+                                active
+                                  ? navSubItemActiveStyle
+                                  : navSubItemStyle
+                              }
+                            >
+                              <span
                                 style={
                                   active
-                                    ? navSubItemActiveStyle
-                                    : navSubItemStyle
+                                    ? activeIndicatorStyle
+                                    : inactiveIndicatorStyle
                                 }
-                              >
-                                <span>{item.label}</span>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      )}
+                              />
+                              <span>{item.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
@@ -358,7 +376,14 @@ export default function AppLayout({
                       : navSubItemStyle
                   }
                 >
-                  Meu Perfil
+                  <span
+                    style={
+                      pathname.startsWith("/perfil")
+                        ? activeIndicatorStyle
+                        : inactiveIndicatorStyle
+                    }
+                  />
+                  <span>Meu Perfil</span>
                 </Link>
 
                 <div style={infoBox}>
@@ -500,6 +525,18 @@ const formatPerfilAntigo = (perfil: string | null) => {
   return "Não definido";
 };
 
+const getGroupItemsStyle = (open: boolean) => ({
+  display: "grid",
+  gap: "5px",
+  padding: open ? "7px 0 2px 10px" : "0 0 0 10px",
+  maxHeight: open ? "420px" : "0px",
+  opacity: open ? 1 : 0,
+  overflow: "hidden",
+  transform: open ? "translateY(0)" : "translateY(-4px)",
+  transition:
+    "max-height 260ms ease, opacity 180ms ease, transform 220ms ease, padding 220ms ease",
+});
+
 const shell = {
   display: "flex",
   minHeight: "100vh",
@@ -590,15 +627,10 @@ const groupSummaryActiveStyle = {
   boxShadow: "0 10px 28px rgba(198,255,0,0.22)",
 };
 
-const groupItemsStyle = {
-  display: "grid",
-  gap: "5px",
-  padding: "7px 0 2px 10px",
-};
-
 const chevronStyle = {
   fontSize: "11px",
   opacity: 0.78,
+  transition: "transform 220ms ease",
 };
 
 const navSubItemStyle = {
@@ -610,16 +642,36 @@ const navSubItemStyle = {
   textDecoration: "none",
   display: "flex",
   alignItems: "center",
-  justifyContent: "space-between",
+  gap: "8px",
   border: "1px solid transparent",
+  transition:
+    "background 160ms ease, color 160ms ease, border 160ms ease, transform 160ms ease",
 };
 
 const navSubItemActiveStyle = {
   ...navSubItemStyle,
   color: "#ffffff",
-  background: "rgba(255,255,255,0.13)",
-  border: "1px solid rgba(255,255,255,0.20)",
+  background: "rgba(255,255,255,0.10)",
+  border: "1px solid rgba(255,255,255,0.16)",
   fontWeight: 800,
+  transform: "translateX(2px)",
+};
+
+const activeIndicatorStyle = {
+  width: "3px",
+  height: "18px",
+  borderRadius: "999px",
+  background: "#c6ff00",
+  boxShadow: "0 0 14px rgba(198,255,0,0.65)",
+  flexShrink: 0,
+};
+
+const inactiveIndicatorStyle = {
+  width: "3px",
+  height: "18px",
+  borderRadius: "999px",
+  background: "transparent",
+  flexShrink: 0,
 };
 
 const logoutButton = {
