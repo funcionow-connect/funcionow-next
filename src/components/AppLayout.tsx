@@ -76,7 +76,7 @@ export default function AppLayout({
   const [perfilAcessoNome, setPerfilAcessoNome] = useState("");
   const [initials, setInitials] = useState("U");
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-
+  
   useEffect(() => {
     const checkAccess = async () => {
       try {
