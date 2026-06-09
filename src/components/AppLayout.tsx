@@ -44,6 +44,13 @@ type MenuGroup = {
   defaultOpen?: boolean;
 };
 
+type MenuGroupDefinition = {
+  label: string;
+  ordem: number;
+  hrefs: string[];
+  defaultOpen?: boolean;
+};
+
 const fallbackMenuItems: MenuItem[] = [
   { label: "Dashboard", href: "/dashboard", match: "/dashboard", ordem: 1 },
   { label: "Creators", href: "/creators", match: "/creators", ordem: 2 },
@@ -76,7 +83,8 @@ export default function AppLayout({
   const [perfilAcessoNome, setPerfilAcessoNome] = useState("");
   const [initials, setInitials] = useState("U");
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+
   useEffect(() => {
     const checkAccess = async () => {
       try {
@@ -186,7 +194,6 @@ export default function AppLayout({
           }
         }
 
-        // Fallback temporário para usuários antigos ou recém-criados sem perfil_acesso_id
         if (itensPermitidos.length === 0) {
           itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
           nomePerfil = formatPerfilAntigo(usuario.perfil);
@@ -254,6 +261,16 @@ export default function AppLayout({
     return pathname === item.href || pathname.startsWith(`${item.match}/`);
   };
 
+  const activeGroup =
+    menuGroups.find((group) => group.items.some(isMenuItemActive))?.label ||
+    null;
+
+  const currentOpenGroup = openGroup || activeGroup;
+
+  const toggleGroup = (groupLabel: string) => {
+    setOpenGroup((current) => (current === groupLabel ? null : groupLabel));
+  };
+
   if (loading) {
     return (
       <div style={loadingPage}>
@@ -285,40 +302,45 @@ export default function AppLayout({
               <>
                 {menuGroups.map((group) => {
                   const groupActive = group.items.some(isMenuItemActive);
+                  const groupOpen = currentOpenGroup === group.label;
 
                   return (
-                    <details
-                      key={group.label}
-                      open={group.defaultOpen || groupActive}
-                      style={menuGroupStyle}
-                    >
-                      <summary
+                    <div key={group.label} style={menuGroupStyle}>
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.label)}
                         style={
-                          groupActive
+                          groupActive || groupOpen
                             ? groupSummaryActiveStyle
                             : groupSummaryStyle
                         }
                       >
                         <span>{group.label}</span>
-                        <span style={chevronStyle}>▾</span>
-                      </summary>
+                        <span style={chevronStyle}>{groupOpen ? "▾" : "▸"}</span>
+                      </button>
 
-                      <div style={groupItemsStyle}>
-                        {group.items.map((item) => {
-                          const active = isMenuItemActive(item);
+                      {groupOpen && (
+                        <div style={groupItemsStyle}>
+                          {group.items.map((item) => {
+                            const active = isMenuItemActive(item);
 
-                          return (
-                            <a
-                              key={item.href}
-                              href={item.href}
-                              style={active ? navItemActiveStyle : navItemStyle}
-                            >
-                              <span>{item.label}</span>
-                            </a>
-                          );
-                        })}
-                      </div>
-                    </details>
+                            return (
+                              <a
+                                key={item.href}
+                                href={item.href}
+                                style={
+                                  active
+                                    ? navSubItemActiveStyle
+                                    : navSubItemStyle
+                                }
+                              >
+                                <span>{item.label}</span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
 
@@ -335,8 +357,8 @@ export default function AppLayout({
                   href="/perfil"
                   style={
                     pathname.startsWith("/perfil")
-                      ? navItemActiveStyle
-                      : navItemStyle
+                      ? navSubItemActiveStyle
+                      : navSubItemStyle
                   }
                 >
                   Meu Perfil
@@ -369,7 +391,7 @@ export default function AppLayout({
   );
 }
 
-const menuGroupDefinitions = [
+const menuGroupDefinitions: MenuGroupDefinition[] = [
   {
     label: "Administração",
     ordem: 1,
@@ -386,7 +408,6 @@ const menuGroupDefinitions = [
       "/operacao/calendario",
       "/operacao/notas",
     ],
-    defaultOpen: true,
   },
   {
     label: "Community First",
@@ -403,7 +424,7 @@ const menuGroupDefinitions = [
 const groupMenuItems = (items: MenuItem[]): MenuGroup[] => {
   const usedHrefs = new Set<string>();
 
-  const groups = menuGroupDefinitions
+  const groups: MenuGroup[] = menuGroupDefinitions
     .map((group) => {
       const groupItems = items
         .filter((item) => group.hrefs.includes(item.href))
@@ -417,7 +438,7 @@ const groupMenuItems = (items: MenuItem[]): MenuGroup[] => {
         label: group.label,
         ordem: group.ordem,
         items: groupItems,
-        defaultOpen: group.defaultOpen,
+        defaultOpen: group.defaultOpen ?? false,
       };
     })
     .filter((group) => group.items.length > 0);
@@ -549,7 +570,7 @@ const menuGroupStyle = {
 };
 
 const groupSummaryStyle = {
-  listStyle: "none",
+  width: "100%",
   cursor: "pointer",
   padding: "10px 12px",
   borderRadius: "12px",
@@ -561,13 +582,15 @@ const groupSummaryStyle = {
   justifyContent: "space-between",
   background: "rgba(255,255,255,0.045)",
   border: "1px solid rgba(255,255,255,0.07)",
+  textAlign: "left" as const,
 };
 
 const groupSummaryActiveStyle = {
   ...groupSummaryStyle,
-  color: "#ffffff",
-  background: "rgba(198,255,0,0.13)",
-  border: "1px solid rgba(198,255,0,0.25)",
+  color: "#111111",
+  background: "#c6ff00",
+  border: "1px solid rgba(198,255,0,0.95)",
+  boxShadow: "0 10px 28px rgba(198,255,0,0.22)",
 };
 
 const groupItemsStyle = {
@@ -578,36 +601,27 @@ const groupItemsStyle = {
 
 const chevronStyle = {
   fontSize: "11px",
-  opacity: 0.7,
+  opacity: 0.78,
 };
 
-const navItemStyle = {
+const navSubItemStyle = {
   padding: "8px 10px",
   borderRadius: "10px",
   fontSize: "12px",
-  color: "rgba(255,255,255,0.62)",
+  color: "rgba(255,255,255,0.55)",
   cursor: "pointer",
   textDecoration: "none",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
   border: "1px solid transparent",
-  transition: "all 180ms ease",
 };
 
-const navItemActiveStyle = {
-  padding: "8px 10px",
-  borderRadius: "10px",
-  fontSize: "12px",
-  color: "#111111",
-  background: "#c6ff00",
-  cursor: "pointer",
-  textDecoration: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  border: "1px solid rgba(198,255,0,0.9)",
-  boxShadow: "0 10px 28px rgba(198,255,0,0.22)",
+const navSubItemActiveStyle = {
+  ...navSubItemStyle,
+  color: "#ffffff",
+  background: "rgba(255,255,255,0.13)",
+  border: "1px solid rgba(255,255,255,0.20)",
   fontWeight: 800,
 };
 
