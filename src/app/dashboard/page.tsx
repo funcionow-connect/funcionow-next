@@ -34,7 +34,6 @@ export default function DashboardPage() {
     setTimeout(loadData, 300);
   }, []);
 
-  // métricas dinâmicas
   const total = creators.length;
   const aprovados = creators.filter(c => c.status === "aprovado").length;
   const analise = creators.filter(c => c.status === "em_analise").length;
@@ -48,11 +47,10 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p style={{ fontSize: "11px", color: "#94a3b8" }}>
-            Visão geral da sua operação com creators
+            Visão geral da operação com comunidades, speakers e creators
           </p>
         </div>
 
-        {/* CARDS */}
         <div style={grid6}>
           <Card label="Total Creators" value={total} />
           <Card label="Aprovados" value={aprovados} />
@@ -62,7 +60,6 @@ export default function DashboardPage() {
           <Card label="ROI Médio" value="—" />
         </div>
 
-        {/* TOP CREATORS */}
         <div style={{ ...panelStyle, marginTop: 12 }}>
           <div style={panelTitle}>Top Creators</div>
 
