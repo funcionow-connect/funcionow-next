@@ -137,7 +137,7 @@ export default function NotasPage() {
             projetos (
               nome
             )
-          `
+          `,
           )
           .eq("empresa_id", usuario.empresa_id)
           .order("criado_em", { ascending: false }),
@@ -247,81 +247,40 @@ export default function NotasPage() {
   }, []);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f8fafc",
-        padding: "32px",
-        color: "#111827",
-      }}
-    >
-      <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "24px",
-            alignItems: "flex-start",
-            marginBottom: "24px",
-          }}
-        >
+    <main style={pageStyle}>
+      <div style={containerStyle}>
+        <header style={headerStyle}>
           <div>
             <p style={eyebrowStyle}>Operação</p>
 
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "30px",
-                fontWeight: 800,
-                letterSpacing: "-0.03em",
-              }}
-            >
-              Notas
-            </h1>
+            <h1 style={titleStyle}>Notas</h1>
 
-            <p
-              style={{
-                margin: "8px 0 0",
-                color: "#6b7280",
-                fontSize: "14px",
-                maxWidth: "720px",
-              }}
-            >
+            <p style={descriptionStyle}>
               Registre informações importantes da operação: produto,
               posicionamento, scripts, processos, atas, ideias e estratégias.
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "12px" }}>
-            <a href="/operacao" style={linkStyle}>
+          <div style={topActionsStyle}>
+            <a href="/operacao" style={topButtonStyle}>
               Dashboard Operacional
             </a>
-            <a href="/operacao/reunioes" style={linkStyle}>
+            <a href="/operacao/reunioes" style={topButtonStyle}>
               Reuniões
             </a>
           </div>
         </header>
 
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "380px 1fr",
-            gap: "24px",
-            alignItems: "flex-start",
-          }}
-        >
-          <aside style={cardStyle}>
-            <h2
-              style={{
-                margin: "0 0 16px",
-                fontSize: "18px",
-                fontWeight: 800,
-              }}
-            >
-              Nova nota
-            </h2>
+        <section style={layoutGridStyle}>
+          <aside style={formCardStyle}>
+            <div style={formHeaderStyle}>
+              <h2 style={formTitleStyle}>Nova nota</h2>
+              <p style={formDescriptionStyle}>
+                Salve processos, ideias, scripts e registros importantes.
+              </p>
+            </div>
 
-            <div style={{ display: "grid", gap: "14px" }}>
+            <div style={formGridStyle}>
               <div>
                 <label style={labelStyle}>Título</label>
                 <input
@@ -383,31 +342,27 @@ export default function NotasPage() {
                 onClick={criarNota}
                 disabled={salvando}
                 style={{
-                  border: "none",
-                  borderRadius: "10px",
-                  padding: "11px 14px",
-                  background: "linear-gradient(to right, #0f766e, #14b8a6)",
-                  color: "white",
-                  fontSize: "14px",
-                  fontWeight: 800,
+                  ...submitButtonStyle,
                   cursor: salvando ? "not-allowed" : "pointer",
                   opacity: salvando ? 0.75 : 1,
                 }}
               >
-                {salvando ? "Salvando..." : "Criar nota"}
+                {salvando ? "Salvando..." : "+ Criar nota"}
               </button>
             </div>
           </aside>
 
-          <section>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                marginBottom: "16px",
-                alignItems: "center",
-              }}
-            >
+          <section style={libraryStyle}>
+            <div style={libraryHeaderStyle}>
+              <div>
+                <h2 style={libraryTitleStyle}>Biblioteca de notas</h2>
+                <p style={libraryDescriptionStyle}>
+                  {notasFiltradas.length} nota(s) encontrada(s)
+                </p>
+              </div>
+            </div>
+
+            <div style={filtersStyle}>
               <input
                 value={busca}
                 onChange={(event) => setBusca(event.target.value)}
@@ -415,7 +370,6 @@ export default function NotasPage() {
                 style={{
                   ...inputStyle,
                   background: "white",
-                  maxWidth: "280px",
                 }}
               />
 
@@ -425,7 +379,6 @@ export default function NotasPage() {
                 style={{
                   ...inputStyle,
                   background: "white",
-                  maxWidth: "190px",
                 }}
               >
                 <option value="todos">Todos os tipos</option>
@@ -442,7 +395,6 @@ export default function NotasPage() {
                 style={{
                   ...inputStyle,
                   background: "white",
-                  maxWidth: "220px",
                 }}
               >
                 <option value="todos">Todos os projetos</option>
@@ -452,16 +404,6 @@ export default function NotasPage() {
                   </option>
                 ))}
               </select>
-
-              <div
-                style={{
-                  marginLeft: "auto",
-                  fontSize: "13px",
-                  color: "#6b7280",
-                }}
-              >
-                {notasFiltradas.length} nota(s)
-              </div>
             </div>
 
             {loading ? (
@@ -469,76 +411,39 @@ export default function NotasPage() {
             ) : notasFiltradas.length === 0 ? (
               <div style={emptyStateStyle}>Nenhuma nota encontrada.</div>
             ) : (
-              <div style={{ display: "grid", gap: "14px" }}>
+              <div style={notesListStyle}>
                 {notasFiltradas.map((nota) => (
-                  <article key={nota.nota_id} style={cardStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "16px",
-                        alignItems: "flex-start",
-                      }}
-                    >
+                  <article
+                    key={nota.nota_id}
+                    style={{
+                      ...noteCardStyle,
+                      borderLeft: getBorderByTipo(nota.tipo),
+                    }}
+                  >
+                    <div style={noteHeaderStyle}>
                       <div>
-                        <h3
-                          style={{
-                            margin: 0,
-                            fontSize: "17px",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {nota.titulo}
-                        </h3>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "8px",
-                            marginTop: "10px",
-                          }}
-                        >
+                        <div style={badgeRowStyle}>
                           <Badge text={formatarTipo(nota.tipo)} />
-
                           {nota.projetos?.nome && (
                             <Badge text={`Projeto: ${nota.projetos.nome}`} />
                           )}
-
                           <Badge text={formatarDataHora(nota.criado_em)} />
                         </div>
+
+                        <h3 style={noteTitleStyle}>{nota.titulo}</h3>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => excluirNota(nota.nota_id)}
-                        style={{
-                          border: "1px solid #fee2e2",
-                          borderRadius: "10px",
-                          background: "#fff",
-                          color: "#dc2626",
-                          padding: "8px 10px",
-                          fontSize: "13px",
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
+                        style={deleteButtonStyle}
                       >
                         Excluir
                       </button>
                     </div>
 
                     {nota.conteudo && (
-                      <p
-                        style={{
-                          margin: "14px 0 0",
-                          whiteSpace: "pre-wrap",
-                          color: "#475569",
-                          fontSize: "13px",
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {nota.conteudo}
-                      </p>
+                      <p style={noteContentStyle}>{nota.conteudo}</p>
                     )}
                   </article>
                 ))}
@@ -552,17 +457,52 @@ export default function NotasPage() {
 }
 
 function Badge({ text }: { text: string }) {
+  const lower = text.toLowerCase();
+
+  let background = "#f1f5f9";
+  let color = "#475569";
+
+  if (lower.includes("estratégia")) {
+    background = "#ede9fe";
+    color = "#6d28d9";
+  }
+
+  if (lower.includes("processo")) {
+    background = "#dcfce7";
+    color = "#166534";
+  }
+
+  if (lower.includes("script")) {
+    background = "#dbeafe";
+    color = "#1d4ed8";
+  }
+
+  if (lower.includes("ata")) {
+    background = "#fed7aa";
+    color = "#c2410c";
+  }
+
+  if (lower.includes("ideia")) {
+    background = "#fce7f3";
+    color = "#be185d";
+  }
+
+  if (lower.includes("produto")) {
+    background = "#cffafe";
+    color = "#0f766e";
+  }
+
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         borderRadius: "999px",
-        background: "#f1f5f9",
-        color: "#475569",
-        fontSize: "12px",
+        background,
+        color,
+        fontSize: "11px",
         fontWeight: 800,
-        padding: "5px 9px",
+        padding: "5px 10px",
       }}
     >
       {text}
@@ -582,39 +522,156 @@ function formatarDataHora(data: string) {
   });
 }
 
-const eyebrowStyle: React.CSSProperties = {
-  margin: "0 0 8px",
-  fontSize: "13px",
-  color: "#0f766e",
-  fontWeight: 700,
+function getBorderByTipo(tipo: Nota["tipo"]) {
+  if (tipo === "estrategia") return "4px solid #6d28d9";
+  if (tipo === "processo") return "4px solid #16a34a";
+  if (tipo === "script") return "4px solid #2563eb";
+  if (tipo === "ata") return "4px solid #ea580c";
+  if (tipo === "ideia") return "4px solid #db2777";
+  if (tipo === "produto") return "4px solid #0f766e";
+  return "4px solid #14b8a6";
+}
+
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f8fafc",
+  padding: "28px",
+  color: "#111827",
 };
 
-const linkStyle: React.CSSProperties = {
+const containerStyle: React.CSSProperties = {
+  maxWidth: "1440px",
+  margin: "0 auto",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "24px",
+  alignItems: "flex-start",
+  marginBottom: "22px",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  margin: "0 0 6px",
+  fontSize: "12px",
   color: "#0f766e",
+  fontWeight: 800,
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "30px",
+  fontWeight: 900,
+  letterSpacing: "-0.04em",
+};
+
+const descriptionStyle: React.CSSProperties = {
+  margin: "8px 0 0",
+  color: "#6b7280",
   fontSize: "14px",
+  maxWidth: "720px",
+  lineHeight: 1.5,
+};
+
+const topActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const topButtonStyle: React.CSSProperties = {
+  color: "#0f172a",
+  background: "white",
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  padding: "9px 12px",
+  fontSize: "13px",
   textDecoration: "none",
   fontWeight: 800,
 };
 
-const cardStyle: React.CSSProperties = {
+const layoutGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "340px 1fr",
+  gap: "32px",
+  alignItems: "flex-start",
+};
+
+const formCardStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "16px",
+  borderRadius: "18px",
   padding: "18px",
-  boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+  boxShadow: "0 4px 14px rgba(15,23,42,0.05)",
+};
+
+const formHeaderStyle: React.CSSProperties = {
+  marginBottom: "16px",
+};
+
+const formTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "18px",
+  fontWeight: 900,
+};
+
+const formDescriptionStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: "#64748b",
+  fontSize: "13px",
+  lineHeight: 1.5,
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "14px",
+};
+
+const libraryStyle: React.CSSProperties = {
+  minWidth: 0,
+};
+
+const libraryHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  alignItems: "center",
+  marginBottom: "14px",
+};
+
+const libraryTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "18px",
+  fontWeight: 900,
+};
+
+const libraryDescriptionStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  fontSize: "13px",
+  color: "#64748b",
+};
+
+const filtersStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 180px 220px",
+  gap: "12px",
+  marginBottom: "16px",
+  alignItems: "center",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: "6px",
   fontSize: "13px",
-  fontWeight: 700,
+  fontWeight: 800,
   color: "#374151",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  borderRadius: "10px",
+  borderRadius: "12px",
   border: "1px solid #d1d5db",
   padding: "10px 12px",
   fontSize: "14px",
@@ -623,10 +680,73 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+const submitButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "12px",
+  padding: "12px 14px",
+  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+  color: "white",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
+const notesListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "14px",
+};
+
+const noteCardStyle: React.CSSProperties = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "18px",
+  padding: "16px 18px",
+  boxShadow: "0 4px 14px rgba(15,23,42,0.05)",
+  transition: "all 0.2s ease",
+};
+
+const noteHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  alignItems: "flex-start",
+};
+
+const badgeRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  marginBottom: "10px",
+};
+
+const noteTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "16px",
+  fontWeight: 900,
+};
+
+const noteContentStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  whiteSpace: "pre-wrap",
+  color: "#475569",
+  fontSize: "13px",
+  lineHeight: 1.65,
+};
+
+const deleteButtonStyle: React.CSSProperties = {
+  border: "1px solid #fee2e2",
+  borderRadius: "10px",
+  background: "#fff",
+  color: "#dc2626",
+  padding: "8px 10px",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
 const emptyStateStyle: React.CSSProperties = {
   background: "white",
   border: "1px solid #e5e7eb",
-  borderRadius: "16px",
+  borderRadius: "18px",
   padding: "32px",
   textAlign: "center",
   color: "#6b7280",
