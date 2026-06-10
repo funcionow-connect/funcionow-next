@@ -6,8 +6,14 @@ import AppLayout from "@/components/AppLayout";
 
 export default function DashboardPage() {
   const [creators, setCreators] = useState<any[]>([]);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
+    if (window.location.search.includes("welcome=empresa")) {
+      setShowWelcome(true);
+      window.history.replaceState({}, "", "/dashboard");
+    }
+
     const loadData = async () => {
       const {
         data: { session },
@@ -35,13 +41,38 @@ export default function DashboardPage() {
   }, []);
 
   const total = creators.length;
-  const aprovados = creators.filter(c => c.status === "aprovado").length;
-  const analise = creators.filter(c => c.status === "em_analise").length;
-  const reprovados = creators.filter(c => c.status === "reprovado").length;
+  const aprovados = creators.filter((c) => c.status === "aprovado").length;
+  const analise = creators.filter((c) => c.status === "em_analise").length;
+  const reprovados = creators.filter((c) => c.status === "reprovado").length;
 
   return (
     <AppLayout>
       <div style={{ background: "#f5f5f6" }}>
+        {showWelcome && (
+          <div style={welcomeCard}>
+            <div style={welcomeTop}>
+              <div style={welcomeIcon}>✓</div>
+              <button style={closeButton} onClick={() => setShowWelcome(false)}>
+                Fechar
+              </button>
+            </div>
+
+            <h2 style={welcomeTitle}>Bem-vindo ao Funcionow Connect</h2>
+            <p style={welcomeText}>Sua empresa foi criada com sucesso.</p>
+
+            <div style={stepsGrid}>
+              <div style={stepCard}>Completar perfil</div>
+              <div style={stepCard}>Configurar empresa</div>
+              <div style={stepCard}>Convidar equipe</div>
+              <div style={stepCard}>Cadastrar primeira Speaker</div>
+            </div>
+
+            <a href="/configuracoes" style={primaryLink}>
+              Começar configuração
+            </a>
+          </div>
+        )}
+
         <div style={{ marginBottom: "20px" }}>
           <h1 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>
             Dashboard
@@ -74,9 +105,7 @@ export default function DashboardPage() {
                 }}
               >
                 <span>{c.nome || "Sem nome"}</span>
-                <span style={{ color: "#0f766e" }}>
-                  {c.status}
-                </span>
+                <span style={{ color: "#0f766e" }}>{c.status}</span>
               </div>
             ))}
           </div>
@@ -129,4 +158,85 @@ const panelStyle = {
 const panelTitle = {
   fontSize: "12px",
   fontWeight: 600,
+};
+
+const welcomeCard = {
+  background: "linear-gradient(135deg, #ffffff 0%, #f0fdfa 100%)",
+  border: "1px solid #ccfbf1",
+  borderRadius: "18px",
+  padding: "24px",
+  marginBottom: "20px",
+  boxShadow: "0 16px 45px rgba(15, 23, 42, 0.08)",
+};
+
+const welcomeTop = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: "14px",
+};
+
+const welcomeIcon = {
+  width: "44px",
+  height: "44px",
+  borderRadius: "14px",
+  background: "white",
+  color: "#0f766e",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 800,
+  boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+};
+
+const closeButton = {
+  border: "1px solid #e5e7eb",
+  background: "white",
+  color: "#64748b",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "11px",
+  cursor: "pointer",
+};
+
+const welcomeTitle = {
+  margin: 0,
+  color: "#0f172a",
+  fontSize: "22px",
+  fontWeight: 800,
+};
+
+const welcomeText = {
+  margin: "6px 0 18px",
+  color: "#475569",
+  fontSize: "14px",
+};
+
+const stepsGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: "10px",
+  marginBottom: "18px",
+};
+
+const stepCard = {
+  background: "white",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "12px",
+  color: "#334155",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const primaryLink = {
+  width: "fit-content",
+  borderRadius: "12px",
+  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+  color: "white",
+  padding: "12px 18px",
+  fontSize: "14px",
+  fontWeight: 800,
+  textDecoration: "none",
+  display: "inline-flex",
 };
