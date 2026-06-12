@@ -93,7 +93,7 @@ export default function AppLayout({
   useEffect(() => {
     const checkAccess = async () => {
       try {
-       // setLoading(true);
+        // setLoading(true);
 
         const {
           data: { session },
@@ -294,7 +294,7 @@ export default function AppLayout({
       <aside style={sidebar}>
         <div>
           <div style={brandBox}>
-            <div style={brandMark} />
+            <div style={brandMark}>F</div>
             <div>
               <h2 style={brandTitle}>Funcionow</h2>
               <div style={brandSubtitle}>Connect</div>
@@ -401,8 +401,15 @@ export default function AppLayout({
 
       <div style={contentArea}>
         <header style={topbar}>
-          <div style={topbarGlow} />
-          <div style={avatar}>{initials}</div>
+          <div style={topbarTextBox}>
+            <strong style={topbarTitle}>Funcionow Connect</strong>
+            <span style={topbarSubtitle}>Painel operacional</span>
+          </div>
+
+          <div style={topbarRight}>
+            <div style={topbarSearch}>Pesquisar...</div>
+            <div style={avatar}>{initials}</div>
+          </div>
         </header>
 
         <main style={main}>
@@ -527,8 +534,8 @@ const formatPerfilAntigo = (perfil: string | null) => {
 
 const getGroupItemsStyle = (open: boolean) => ({
   display: "grid",
-  gap: "5px",
-  padding: open ? "7px 0 2px 10px" : "0 0 0 10px",
+  gap: "4px",
+  padding: open ? "7px 0 4px 14px" : "0 0 0 14px",
   maxHeight: open ? "420px" : "0px",
   opacity: open ? 1 : 0,
   overflow: "hidden",
@@ -540,66 +547,68 @@ const getGroupItemsStyle = (open: boolean) => ({
 const shell = {
   display: "flex",
   minHeight: "100vh",
-  background:
-    "radial-gradient(circle at top left, rgba(139,108,248,0.10), transparent 32%), var(--fc-bg)",
+  background: "var(--fc-bg)",
 };
 
 const sidebar = {
-  width: "250px",
-  background:
-    "linear-gradient(180deg, #230047 0%, #16002f 52%, #0c001b 100%)",
+  width: "240px",
+  background: "linear-gradient(180deg, #2d1b69 0%, #241554 48%, #1a103f 100%)",
   color: "white",
-  padding: "18px 14px",
+  padding: "16px 12px",
   display: "flex",
   flexDirection: "column" as const,
   justifyContent: "space-between",
-  borderRight: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "14px 0 42px rgba(17,17,26,0.22)",
+  borderRight: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "10px 0 30px rgba(26,16,63,0.20)",
 };
 
 const brandBox = {
   display: "flex",
   alignItems: "center",
-  gap: "10px",
-  marginBottom: "26px",
-  padding: "0 8px",
+  gap: "12px",
+  marginBottom: "22px",
+  padding: "4px 8px 16px",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
 };
 
 const brandMark = {
-  width: "28px",
-  height: "28px",
-  borderRadius: "999px",
-  background:
-    "linear-gradient(135deg, var(--fc-lime) 0%, var(--fc-purple) 100%)",
-  boxShadow: "0 0 24px rgba(198,255,0,0.35)",
+  width: "36px",
+  height: "36px",
+  borderRadius: "12px",
+  background: "#c5e000",
+  color: "#1a1a2e",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "15px",
+  fontWeight: 900,
+  boxShadow: "0 10px 24px rgba(197,224,0,0.28)",
   flexShrink: 0,
 };
 
 const brandTitle = {
   margin: 0,
-  fontSize: "16px",
+  fontSize: "15px",
   fontWeight: 800,
-  letterSpacing: "-0.04em",
+  letterSpacing: "-0.03em",
   lineHeight: 1,
 };
 
 const brandSubtitle = {
-  marginTop: "3px",
+  marginTop: "4px",
   fontSize: "11px",
-  fontWeight: 700,
-  color: "rgba(198,255,0,0.85)",
-  letterSpacing: "0.08em",
-  textTransform: "uppercase" as const,
+  fontWeight: 600,
+  color: "rgba(255,255,255,0.45)",
 };
 
 const nav = {
   display: "flex",
   flexDirection: "column" as const,
-  gap: "8px",
+  gap: "6px",
 };
 
 const menuGroupStyle = {
-  borderRadius: "14px",
+  borderRadius: "12px",
   overflow: "hidden",
 };
 
@@ -607,24 +616,25 @@ const groupSummaryStyle = {
   width: "100%",
   cursor: "pointer",
   padding: "10px 12px",
-  borderRadius: "12px",
+  borderRadius: "10px",
   color: "rgba(255,255,255,0.72)",
-  fontSize: "12px",
-  fontWeight: 800,
+  fontSize: "13px",
+  fontWeight: 700,
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  background: "rgba(255,255,255,0.045)",
-  border: "1px solid rgba(255,255,255,0.07)",
+  background: "transparent",
+  border: "1px solid transparent",
   textAlign: "left" as const,
+  transition: "all 160ms ease",
 };
 
 const groupSummaryActiveStyle = {
   ...groupSummaryStyle,
-  color: "#111111",
-  background: "#c6ff00",
-  border: "1px solid rgba(198,255,0,0.95)",
-  boxShadow: "0 10px 28px rgba(198,255,0,0.22)",
+  color: "#1a1a2e",
+  background: "#c5e000",
+  border: "1px solid rgba(197,224,0,0.95)",
+  boxShadow: "0 10px 26px rgba(197,224,0,0.26)",
 };
 
 const chevronStyle = {
@@ -635,9 +645,9 @@ const chevronStyle = {
 
 const navSubItemStyle = {
   padding: "8px 10px",
-  borderRadius: "10px",
-  fontSize: "12px",
-  color: "rgba(255,255,255,0.55)",
+  borderRadius: "9px",
+  fontSize: "13px",
+  color: "rgba(255,255,255,0.56)",
   cursor: "pointer",
   textDecoration: "none",
   display: "flex",
@@ -650,9 +660,9 @@ const navSubItemStyle = {
 
 const navSubItemActiveStyle = {
   ...navSubItemStyle,
-  color: "#ffffff",
-  background: "rgba(255,255,255,0.10)",
-  border: "1px solid rgba(255,255,255,0.16)",
+  color: "#c5e000",
+  background: "rgba(197,224,0,0.10)",
+  border: "1px solid rgba(197,224,0,0.18)",
   fontWeight: 800,
   transform: "translateX(2px)",
 };
@@ -661,8 +671,8 @@ const activeIndicatorStyle = {
   width: "3px",
   height: "18px",
   borderRadius: "999px",
-  background: "#c6ff00",
-  boxShadow: "0 0 14px rgba(198,255,0,0.65)",
+  background: "#c5e000",
+  boxShadow: "0 0 14px rgba(197,224,0,0.70)",
   flexShrink: 0,
 };
 
@@ -675,14 +685,14 @@ const inactiveIndicatorStyle = {
 };
 
 const logoutButton = {
-  padding: "10px 12px",
-  borderRadius: "999px",
+  padding: "11px 12px",
+  borderRadius: "12px",
   fontSize: "13px",
-  color: "rgba(255,255,255,0.62)",
+  color: "rgba(255,255,255,0.66)",
   cursor: "pointer",
   textDecoration: "none",
   display: "block",
-  background: "transparent",
+  background: "rgba(255,255,255,0.06)",
   border: "1px solid rgba(255,255,255,0.08)",
   textAlign: "left" as const,
 };
@@ -695,58 +705,78 @@ const contentArea = {
 };
 
 const topbar = {
-  height: "68px",
-  background: "rgba(248,248,252,0.82)",
-  backdropFilter: "blur(18px)",
-  borderBottom: "1px solid rgba(229,231,235,0.8)",
+  height: "72px",
+  background: "#ffffff",
+  borderBottom: "1px solid rgba(0,0,0,0.07)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
   display: "flex",
   alignItems: "center",
-  justifyContent: "flex-end",
+  justifyContent: "space-between",
   padding: "0 28px",
   position: "sticky" as const,
   top: 0,
   zIndex: 10,
 };
 
-const topbarGlow = {
-  width: "120px",
-  height: "24px",
-  borderRadius: "999px",
-  background:
-    "linear-gradient(90deg, rgba(139,108,248,0.16), rgba(198,255,0,0.18))",
-  filter: "blur(16px)",
-  marginRight: "12px",
+const topbarTextBox = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: "2px",
+};
+
+const topbarTitle = {
+  color: "#1a1a2e",
+  fontSize: "15px",
+  fontWeight: 800,
+};
+
+const topbarSubtitle = {
+  color: "#9999aa",
+  fontSize: "12px",
+};
+
+const topbarRight = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+};
+
+const topbarSearch = {
+  width: "220px",
+  padding: "9px 12px",
+  borderRadius: "10px",
+  background: "#f4f5f9",
+  border: "1px solid rgba(0,0,0,0.08)",
+  color: "#9999aa",
+  fontSize: "13px",
 };
 
 const avatar = {
-  width: "34px",
-  height: "34px",
+  width: "38px",
+  height: "38px",
   borderRadius: "999px",
-  background:
-    "linear-gradient(135deg, var(--fc-purple) 0%, var(--fc-purple-dark) 100%)",
-  color: "white",
+  background: "#2d1b69",
+  color: "#c5e000",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "12px",
-  fontWeight: 800,
-  boxShadow: "0 10px 24px rgba(139,108,248,0.25)",
+  fontSize: "13px",
+  fontWeight: 900,
 };
 
 const main = {
   flex: 1,
-  padding: "26px",
+  padding: "24px",
 };
 
 const mainInner = {
-  maxWidth: "1220px",
+  maxWidth: "1400px",
   margin: "0 auto",
 };
 
 const loadingPage = {
   minHeight: "100vh",
-  background:
-    "radial-gradient(circle at top left, rgba(139,108,248,0.16), transparent 32%), var(--fc-bg)",
+  background: "var(--fc-bg)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -760,7 +790,7 @@ const loadingCard = {
   gap: "12px",
   background: "white",
   border: "1px solid var(--fc-border)",
-  borderRadius: "24px",
+  borderRadius: "18px",
   padding: "16px 18px",
   boxShadow: "var(--fc-shadow-soft)",
 };
@@ -780,7 +810,7 @@ const loadingText = {
 const infoBox = {
   marginTop: "12px",
   padding: "12px",
-  borderRadius: "16px",
+  borderRadius: "14px",
   background: "rgba(255,255,255,0.06)",
   color: "rgba(255,255,255,0.68)",
   fontSize: "11px",
@@ -791,7 +821,7 @@ const infoBox = {
 const profileInfoBox = {
   marginTop: "14px",
   padding: "12px",
-  borderRadius: "16px",
+  borderRadius: "14px",
   background: "rgba(255,255,255,0.06)",
   color: "rgba(255,255,255,0.72)",
   fontSize: "11px",
