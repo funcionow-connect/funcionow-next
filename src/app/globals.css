@@ -3,32 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --fc-bg: #f8f8fc;
-  --fc-bg-soft: #f5f5fa;
-  --fc-sidebar: #11111a;
-  --fc-sidebar-soft: #171722;
+  --fc-bg: #f4f5f9;
+  --fc-bg-soft: #f0f1f6;
+  --fc-sidebar: #2d1b69;
+  --fc-sidebar-soft: rgba(255, 255, 255, 0.08);
 
   --fc-card: #ffffff;
-  --fc-border: #e5e7eb;
+  --fc-border: rgba(0, 0, 0, 0.08);
 
-  --fc-text: #111111;
-  --fc-muted: #6b7280;
+  --fc-text: #1a1a2e;
+  --fc-muted: #6b6c80;
 
-  --fc-purple: #8b6cf8;
-  --fc-purple-dark: #5b46b2;
-  --fc-lime: #c6ff00;
-  --fc-lime-dark: #aeea00;
+  --fc-purple: #2d1b69;
+  --fc-purple-dark: #1a103f;
+  --fc-lime: #c5e000;
+  --fc-lime-dark: #b3cc00;
 
-  --fc-danger: #ef4444;
-  --fc-warning: #f59e0b;
-  --fc-success: #22c55e;
+  --fc-danger: #dc2626;
+  --fc-warning: #ca8a04;
+  --fc-success: #16a34a;
 
-  --fc-radius-sm: 12px;
-  --fc-radius-md: 16px;
-  --fc-radius-lg: 24px;
+  --fc-radius-sm: 10px;
+  --fc-radius-md: 12px;
+  --fc-radius-lg: 16px;
 
-  --fc-shadow-soft: 0 10px 30px rgba(17, 17, 26, 0.06);
-  --fc-shadow-glow: 0 12px 36px rgba(198, 255, 0, 0.24);
+  --fc-shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.04);
+  --fc-shadow-glow: 0 10px 28px rgba(197, 224, 0, 0.22);
 }
 
 html,
