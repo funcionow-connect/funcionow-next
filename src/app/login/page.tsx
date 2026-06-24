@@ -192,6 +192,20 @@ export default function HomePage() {
               </div>
             </div>
 
+<div style={{ textAlign: "right", marginTop: "-8px" }}>
+  <a
+    href="/forgot-password"
+    style={{
+      fontSize: "13px",
+      color: "#0d9488",
+      textDecoration: "none",
+      fontWeight: 500,
+    }}
+  >
+    Esqueci minha senha
+  </a>
+</div>
+
             <button
               onClick={handleLogin}
               disabled={loading}
