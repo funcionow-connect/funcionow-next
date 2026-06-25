@@ -62,14 +62,12 @@ export default function RegisterPage() {
         return;
       }
 
-      if (tipoCadastro === "empresa") {
-        setCompanyCreated(true);
-        setTimeout(goToDashboard, 1800);
-        return;
-      }
+      alert(
+  "Conta criada com sucesso! Verifique seu e-mail e confirme sua conta antes de fazer o primeiro login."
+);
 
-      alert("Conta criada com sucesso! Complete seu perfil.");
-      window.location.href = "/perfil";
+window.location.href = "/login";
+
     } catch (err) {
       console.error("Erro inesperado ao criar conta:", err);
       alert("Erro de conexão ao criar conta.");
