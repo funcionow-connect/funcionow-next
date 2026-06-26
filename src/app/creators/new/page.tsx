@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import AppLayout from "@/components/AppLayout";
 
 export default function NewCreatorPage() {
   const router = useRouter();
@@ -59,6 +60,7 @@ export default function NewCreatorPage() {
   };
 
   return (
+  <AppLayout>
     <div style={{ padding: "32px", maxWidth: "400px" }}>
       <h1>Novo Creator</h1>
 
@@ -80,5 +82,6 @@ export default function NewCreatorPage() {
         </button>
       </div>
     </div>
-  );
+  </AppLayout>
+);
 }
