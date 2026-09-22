@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Campaign = { campanha_id: string; nome: string; descricao: string | null; status: string; data_inicio: string | null; data_fim: string | null; orcamento: number | null; receita: number | null };
@@ -21,6 +21,14 @@ export default function CampanhaDetailPage() {
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newStatus, setNewStatus] = useState("pendente");
+  const [newDeadline, setNewDeadline] = useState("");
+  const [newCost, setNewCost] = useState("");
+  const [newRevenue, setNewRevenue] = useState("");
+  const [newCreator, setNewCreator] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -47,6 +55,22 @@ export default function CampanhaDetailPage() {
   const completed = deliverables.filter((item) => ["entregue", "aprovado"].includes(item.status)).length;
   const roi = useMemo(() => campaign?.orcamento ? (Number(campaign.receita || 0) / Number(campaign.orcamento)).toFixed(1) : "-", [campaign]);
 
+  const addDeliverable = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!id || !newTitle.trim()) return;
+    setSaving(true); setError("");
+    const { data, error: insertError } = await supabase.from("campanha_entregaveis").insert({ campanha_id: id, titulo: newTitle.trim(), status: newStatus, prazo: newDeadline || null, custo: Number(newCost) || 0, receita: Number(newRevenue) || 0, creator_id: newCreator || null }).select("entregavel_id, titulo, status, prazo, custo, receita, creator_id").single();
+    if (insertError || !data) { setError(insertError?.message || "Não foi possível criar o entregável."); setSaving(false); return; }
+    setDeliverables((current) => [...current, data].sort((a, b) => (a.prazo || "9999").localeCompare(b.prazo || "9999")));
+    setNewTitle(""); setNewDeadline(""); setNewCost(""); setNewRevenue(""); setNewCreator(""); setNewStatus("pendente"); setShowForm(false); setSaving(false);
+  };
+
+  const updateDeliverableStatus = async (item: Deliverable, status: string) => {
+    const { error: updateError } = await supabase.from("campanha_entregaveis").update({ status }).eq("entregavel_id", item.entregavel_id);
+    if (updateError) { setError("Não foi possível atualizar o status do entregável."); return; }
+    setDeliverables((current) => current.map((entry) => entry.entregavel_id === item.entregavel_id ? { ...entry, status } : entry));
+  };
+
   if (loading) return <div style={empty}>Carregando campanha...</div>;
   if (error || !campaign) return <div><Link href="/campanhas" style={back}>← Voltar para campanhas</Link><div style={errorBox}>{error || "Campanha não encontrada."}</div></div>;
 
@@ -58,7 +82,10 @@ export default function CampanhaDetailPage() {
       <div style={card}><div style={sectionTitle}>Creators da campanha</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"}</small></div><span style={statusStyle(creator.status)}>{statusLabels[creator.status] || creator.status}</span></div>)}</div>}</div>
       <div style={card}><div style={sectionTitle}>Financeiro</div><div style={info}><InfoRow label="Orçamento" value={money(campaign.orcamento)} /><InfoRow label="Receita" value={money(campaign.receita)} /><InfoRow label="ROI" value={roi === "-" ? roi : `${roi}x`} /><InfoRow label="Status" value={statusLabels[campaign.status] || campaign.status} /></div></div>
     </div>
-    <div style={{ ...card, marginTop: "14px" }}><div style={sectionTitle}>Entregáveis</div>{deliverables.length === 0 ? <div style={muted}>Nenhum entregável cadastrado.</div> : <div style={list}>{deliverables.map((item) => <div key={item.entregavel_id} style={row}><div><strong>{item.titulo}</strong><small style={small}>Prazo: {date(item.prazo)} · Custo: {money(item.custo)}</small></div><span style={statusStyle(item.status)}>{statusLabels[item.status] || item.status}</span></div>)}</div>}</div>
+    <div style={{ ...card, marginTop: "14px" }}><div style={sectionHeader}><div style={sectionTitle}>Entregáveis</div><button type="button" style={secondaryButton} onClick={() => setShowForm((value) => !value)}>{showForm ? "Fechar" : "+ Adicionar"}</button></div>
+      {showForm && <form onSubmit={addDeliverable} style={form}><input required value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Título do entregável" style={input} /><select value={newCreator} onChange={(event) => setNewCreator(event.target.value)} style={input}><option value="">Creator responsável (opcional)</option>{creators.map((creator) => <option key={creator.creator_id} value={creator.creator_id}>{creator.nome}</option>)}</select><select value={newStatus} onChange={(event) => setNewStatus(event.target.value)} style={input}>{["pendente", "em_producao", "entregue", "aprovado", "reprovado"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select><input type="date" value={newDeadline} onChange={(event) => setNewDeadline(event.target.value)} style={input} /><input type="number" min="0" value={newCost} onChange={(event) => setNewCost(event.target.value)} placeholder="Custo" style={input} /><input type="number" min="0" value={newRevenue} onChange={(event) => setNewRevenue(event.target.value)} placeholder="Receita" style={input} /><button disabled={saving} style={primaryButton}>{saving ? "Salvando..." : "Salvar entregável"}</button></form>}
+      {deliverables.length === 0 ? <div style={muted}>Nenhum entregável cadastrado.</div> : <div style={list}>{deliverables.map((item) => <div key={item.entregavel_id} style={row}><div><strong>{item.titulo}</strong><small style={small}>Prazo: {date(item.prazo)} · Custo: {money(item.custo)}</small></div><select aria-label={`Status de ${item.titulo}`} value={item.status} onChange={(event) => void updateDeliverableStatus(item, event.target.value)} style={statusSelect}>{["pendente", "em_producao", "entregue", "aprovado", "reprovado"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select></div>)}</div>}
+    </div>
   </div>;
 }
 
@@ -75,6 +102,12 @@ const metric = { display: "grid", gap: "4px", background: "#f8fafc", border: "1p
 const grid = { display: "grid", gridTemplateColumns: "2fr 1fr", gap: "14px" };
 const card = { background: "white", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" };
 const sectionTitle = { fontSize: "13px", fontWeight: 700 };
+const sectionHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" };
+const secondaryButton = { border: "1px solid #d1d5db", borderRadius: "7px", background: "white", color: "#5b21b6", padding: "7px 10px", cursor: "pointer", fontWeight: 600, fontSize: "11px" };
+const form = { display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr 1fr auto", gap: "7px", marginTop: "12px", padding: "10px", background: "#f8fafc", borderRadius: "8px" };
+const input = { minWidth: 0, border: "1px solid #d1d5db", borderRadius: "7px", padding: "8px", fontSize: "11px", background: "white" };
+const primaryButton = { border: "none", borderRadius: "7px", background: "#2d1b69", color: "white", padding: "8px 10px", cursor: "pointer", fontWeight: 700, fontSize: "11px" };
+const statusSelect = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 6px", fontSize: "11px", background: "white" };
 const list = { marginTop: "10px" };
 const row = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" };
 const small = { display: "block", color: "#6b7280", fontSize: "11px", marginTop: "3px" };
