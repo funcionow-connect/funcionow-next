@@ -18,6 +18,7 @@ export default function CampanhaDetailPage() {
   const id = searchParams.get("id");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [creators, setCreators] = useState<CampaignCreator[]>([]);
+  const [availableCreators, setAvailableCreators] = useState<{ creator_id: string; nome: string; instagram: string }[]>([]);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,9 +52,10 @@ export default function CampanhaDetailPage() {
       ]);
       if (linksError || itemsError) { setError("A campanha foi encontrada, mas os dados complementares não puderam ser carregados."); setCampaign(data); setLoading(false); return; }
       const creatorIds = (links || []).map((item) => item.creator_id);
-      const { data: people } = creatorIds.length ? await supabase.from("creators").select("creator_id, nome, instagram").in("creator_id", creatorIds) : { data: [] };
+      const { data: people } = await supabase.from("creators").select("creator_id, nome, instagram").order("nome", { ascending: true });
       const peopleById = new Map((people || []).map((person) => [person.creator_id, person]));
       setCampaign(data);
+      setAvailableCreators((people || []).filter((person) => !creatorIds.includes(person.creator_id)));
       setEditName(data.nome); setEditDescription(data.descricao || ""); setEditStatus(data.status); setEditStart(data.data_inicio || ""); setEditEnd(data.data_fim || ""); setEditBudget(String(data.orcamento || "")); setEditRevenue(String(data.receita || ""));
       setCreators((links || []).map((item) => ({ ...item, nome: peopleById.get(item.creator_id)?.nome || "Creator sem nome", instagram: peopleById.get(item.creator_id)?.instagram || "-" })));
       setDeliverables(items || []);
@@ -81,6 +83,22 @@ export default function CampanhaDetailPage() {
     setDeliverables((current) => current.map((entry) => entry.entregavel_id === item.entregavel_id ? { ...entry, status } : entry));
   };
 
+  const addCreator = async (creatorId: string) => {
+    if (!id || !creatorId) return;
+    const { data, error: insertError } = await supabase.from("campanha_creators").insert({ campanha_id: id, creator_id: creatorId, status: "convidado" }).select("campanha_creator_id, creator_id, status").single();
+    if (insertError || !data) { setError(insertError?.message || "Não foi possível vincular o creator."); return; }
+    const creator = availableCreators.find((item) => item.creator_id === creatorId);
+    if (!creator) return;
+    setCreators((current) => [...current, { ...data, nome: creator.nome, instagram: creator.instagram }]);
+    setAvailableCreators((current) => current.filter((item) => item.creator_id !== creatorId));
+  };
+
+  const updateCreatorStatus = async (creator: CampaignCreator, status: string) => {
+    const { error: updateError } = await supabase.from("campanha_creators").update({ status }).eq("campanha_creator_id", creator.campanha_creator_id);
+    if (updateError) { setError("Não foi possível atualizar o status do creator."); return; }
+    setCreators((current) => current.map((item) => item.campanha_creator_id === creator.campanha_creator_id ? { ...item, status } : item));
+  };
+
   const updateCampaign = async (event: FormEvent) => {
     event.preventDefault();
     if (!id || !editName.trim()) return;
@@ -99,7 +117,7 @@ export default function CampanhaDetailPage() {
     {editing && <form onSubmit={updateCampaign} style={editForm}><input required value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Nome da campanha" style={input} /><textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Descrição" style={{ ...input, minHeight: "58px", resize: "vertical" as const }} /><div style={editFields}><select value={editStatus} onChange={(event) => setEditStatus(event.target.value)} style={input}>{["planejada", "ativa", "finalizada", "cancelada"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select><input type="date" value={editStart} onChange={(event) => setEditStart(event.target.value)} style={input} /><input type="date" value={editEnd} onChange={(event) => setEditEnd(event.target.value)} style={input} /><input type="number" min="0" value={editBudget} onChange={(event) => setEditBudget(event.target.value)} placeholder="Orçamento" style={input} /><input type="number" min="0" value={editRevenue} onChange={(event) => setEditRevenue(event.target.value)} placeholder="Receita" style={input} /><button disabled={savingCampaign} style={primaryButton}>{savingCampaign ? "Salvando..." : "Salvar alterações"}</button></div></form>}
     <div style={summaryGrid}><Metric label="Creators" value={creators.length} /><Metric label="Entregáveis" value={`${completed}/${deliverables.length}`} /><Metric label="ROI" value={roi === "-" ? roi : `${roi}x`} /><Metric label="Receita" value={money(campaign.receita)} /></div>
     <div style={grid}>
-      <div style={card}><div style={sectionTitle}>Creators da campanha</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"}</small></div><span style={statusStyle(creator.status)}>{statusLabels[creator.status] || creator.status}</span></div>)}</div>}</div>
+      <div style={card}><div style={sectionHeader}><div style={sectionTitle}>Creators da campanha</div>{availableCreators.length > 0 && <select aria-label="Adicionar creator" defaultValue="" onChange={(event) => { void addCreator(event.target.value); event.target.value = ""; }} style={statusSelect}><option value="">+ Adicionar creator</option>{availableCreators.map((creator) => <option key={creator.creator_id} value={creator.creator_id}>{creator.nome}</option>)}</select>}</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"}</small></div><select aria-label={`Status de ${creator.nome}`} value={creator.status} onChange={(event) => void updateCreatorStatus(creator, event.target.value)} style={statusSelect}>{["convidado", "aprovado", "reprovado", "concluido"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select></div>)}</div>}</div>
       <div style={card}><div style={sectionTitle}>Financeiro</div><div style={info}><InfoRow label="Orçamento" value={money(campaign.orcamento)} /><InfoRow label="Receita" value={money(campaign.receita)} /><InfoRow label="ROI" value={roi === "-" ? roi : `${roi}x`} /><InfoRow label="Status" value={statusLabels[campaign.status] || campaign.status} /></div></div>
     </div>
     <div style={{ ...card, marginTop: "14px" }}><div style={sectionHeader}><div style={sectionTitle}>Entregáveis</div><button type="button" style={secondaryButton} onClick={() => setShowForm((value) => !value)}>{showForm ? "Fechar" : "+ Adicionar"}</button></div>
