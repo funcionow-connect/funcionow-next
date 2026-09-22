@@ -29,6 +29,15 @@ export default function CampanhaDetailPage() {
   const [newCost, setNewCost] = useState("");
   const [newRevenue, setNewRevenue] = useState("");
   const [newCreator, setNewCreator] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState("planejada");
+  const [editStart, setEditStart] = useState("");
+  const [editEnd, setEditEnd] = useState("");
+  const [editBudget, setEditBudget] = useState("");
+  const [editRevenue, setEditRevenue] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -45,6 +54,7 @@ export default function CampanhaDetailPage() {
       const { data: people } = creatorIds.length ? await supabase.from("creators").select("creator_id, nome, instagram").in("creator_id", creatorIds) : { data: [] };
       const peopleById = new Map((people || []).map((person) => [person.creator_id, person]));
       setCampaign(data);
+      setEditName(data.nome); setEditDescription(data.descricao || ""); setEditStatus(data.status); setEditStart(data.data_inicio || ""); setEditEnd(data.data_fim || ""); setEditBudget(String(data.orcamento || "")); setEditRevenue(String(data.receita || ""));
       setCreators((links || []).map((item) => ({ ...item, nome: peopleById.get(item.creator_id)?.nome || "Creator sem nome", instagram: peopleById.get(item.creator_id)?.instagram || "-" })));
       setDeliverables(items || []);
       setLoading(false);
@@ -71,12 +81,22 @@ export default function CampanhaDetailPage() {
     setDeliverables((current) => current.map((entry) => entry.entregavel_id === item.entregavel_id ? { ...entry, status } : entry));
   };
 
+  const updateCampaign = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!id || !editName.trim()) return;
+    setSavingCampaign(true); setError("");
+    const { data, error: updateError } = await supabase.from("campanhas").update({ nome: editName.trim(), descricao: editDescription.trim() || null, status: editStatus, data_inicio: editStart || null, data_fim: editEnd || null, orcamento: Number(editBudget) || 0, receita: Number(editRevenue) || 0 }).eq("campanha_id", id).select("campanha_id, nome, descricao, status, data_inicio, data_fim, orcamento, receita").single();
+    if (updateError || !data) { setError(updateError?.message || "Não foi possível atualizar a campanha."); setSavingCampaign(false); return; }
+    setCampaign(data); setEditing(false); setSavingCampaign(false);
+  };
+
   if (loading) return <div style={empty}>Carregando campanha...</div>;
   if (error || !campaign) return <div><Link href="/campanhas" style={back}>← Voltar para campanhas</Link><div style={errorBox}>{error || "Campanha não encontrada."}</div></div>;
 
   return <div>
     <Link href="/campanhas" style={back}>← Voltar para campanhas</Link>
-    <div style={header}><div><div style={eyebrow}>Detalhe da campanha</div><h1 style={title}>{campaign.nome}</h1><p style={subtitle}>{campaign.descricao || "Acompanhe creators, entregáveis e resultados desta campanha."}</p><p style={period}>{date(campaign.data_inicio)} — {date(campaign.data_fim)}</p></div><span style={statusStyle(campaign.status)}>{statusLabels[campaign.status] || campaign.status}</span></div>
+    <div style={header}><div><div style={eyebrow}>Detalhe da campanha</div><h1 style={title}>{campaign.nome}</h1><p style={subtitle}>{campaign.descricao || "Acompanhe creators, entregáveis e resultados desta campanha."}</p><p style={period}>{date(campaign.data_inicio)} — {date(campaign.data_fim)}</p></div><div style={headerActions}><span style={statusStyle(campaign.status)}>{statusLabels[campaign.status] || campaign.status}</span><button type="button" style={secondaryButton} onClick={() => setEditing((value) => !value)}>{editing ? "Fechar edição" : "Editar campanha"}</button></div></div>
+    {editing && <form onSubmit={updateCampaign} style={editForm}><input required value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Nome da campanha" style={input} /><textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Descrição" style={{ ...input, minHeight: "58px", resize: "vertical" as const }} /><div style={editFields}><select value={editStatus} onChange={(event) => setEditStatus(event.target.value)} style={input}>{["planejada", "ativa", "finalizada", "cancelada"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select><input type="date" value={editStart} onChange={(event) => setEditStart(event.target.value)} style={input} /><input type="date" value={editEnd} onChange={(event) => setEditEnd(event.target.value)} style={input} /><input type="number" min="0" value={editBudget} onChange={(event) => setEditBudget(event.target.value)} placeholder="Orçamento" style={input} /><input type="number" min="0" value={editRevenue} onChange={(event) => setEditRevenue(event.target.value)} placeholder="Receita" style={input} /><button disabled={savingCampaign} style={primaryButton}>{savingCampaign ? "Salvando..." : "Salvar alterações"}</button></div></form>}
     <div style={summaryGrid}><Metric label="Creators" value={creators.length} /><Metric label="Entregáveis" value={`${completed}/${deliverables.length}`} /><Metric label="ROI" value={roi === "-" ? roi : `${roi}x`} /><Metric label="Receita" value={money(campaign.receita)} /></div>
     <div style={grid}>
       <div style={card}><div style={sectionTitle}>Creators da campanha</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"}</small></div><span style={statusStyle(creator.status)}>{statusLabels[creator.status] || creator.status}</span></div>)}</div>}</div>
@@ -93,6 +113,7 @@ function Metric({ label, value }: { label: string; value: string | number }) { r
 function InfoRow({ label, value }: { label: string; value: string }) { return <div style={infoRow}><span>{label}</span><strong>{value}</strong></div>; }
 const back = { display: "inline-block", color: "#5b21b6", fontSize: "12px", textDecoration: "none", marginBottom: "14px" };
 const header = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginBottom: "16px" };
+const headerActions = { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const, justifyContent: "flex-end" };
 const eyebrow = { color: "#6b7280", fontSize: "11px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.05em" };
 const title = { fontSize: "22px", fontWeight: 700, margin: "4px 0 0" };
 const subtitle = { fontSize: "12px", color: "#6b7280", margin: "5px 0 0" };
@@ -108,6 +129,8 @@ const form = { display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr 1fr 
 const input = { minWidth: 0, border: "1px solid #d1d5db", borderRadius: "7px", padding: "8px", fontSize: "11px", background: "white" };
 const primaryButton = { border: "none", borderRadius: "7px", background: "#2d1b69", color: "white", padding: "8px 10px", cursor: "pointer", fontWeight: 700, fontSize: "11px" };
 const statusSelect = { border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 6px", fontSize: "11px", background: "white" };
+const editForm = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "12px", marginBottom: "14px", display: "grid", gap: "8px" };
+const editFields = { display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "7px" };
 const list = { marginTop: "10px" };
 const row = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" };
 const small = { display: "block", color: "#6b7280", fontSize: "11px", marginTop: "3px" };
