@@ -57,3 +57,20 @@ h6 {
 * {
   box-sizing: border-box;
 }
+
+@media (max-width: 720px) {
+  .login-shell {
+    display: block !important;
+    min-height: 100vh;
+    height: auto !important;
+  }
+
+  .login-form-panel {
+    min-height: 100vh;
+    padding: 48px 20px 32px !important;
+  }
+
+  .login-promo-panel {
+    display: none !important;
+  }
+}

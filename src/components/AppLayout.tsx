@@ -177,6 +177,10 @@ export default function AppLayout({
 
           if (permissoesError) {
             console.error("Erro ao buscar permissões:", permissoesError);
+            // Em caso de falha de leitura, manter a compatibilidade com o
+            // modelo legado. Uma resposta vazia, porém válida, deve continuar
+            // vazia para não transformar ausência de permissão em acesso.
+            itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
           } else {
             itensPermitidos = ((permissoes || []) as PermissaoPagina[])
               .map((permissao) => {
@@ -199,7 +203,7 @@ export default function AppLayout({
           }
         }
 
-        if (itensPermitidos.length === 0) {
+        if (itensPermitidos.length === 0 && !usuario.perfil_acesso_id) {
           itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
           nomePerfil = formatPerfilAntigo(usuario.perfil);
         }
@@ -228,6 +232,9 @@ export default function AppLayout({
         const rotaPermitida =
           rotaPerfil ||
           itensPermitidos.some((item) => {
+            // /operacao é uma página própria. Não deve liberar todas as
+            // subrotas quando somente o dashboard operacional foi permitido.
+            if (item.href === "/operacao") return pathname === item.href;
             return pathname === item.href || pathname.startsWith(`${item.match}/`);
           });
 

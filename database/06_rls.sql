@@ -224,11 +224,11 @@ create policy "Usuario - ler proprio registro" on public.usuarios
 for select to authenticated
 using (usuario_id = auth.uid());
 
+-- O vínculo do usuário com a empresa e o perfil de acesso é controlado
+-- por funções SECURITY DEFINER. Não permitir UPDATE direto pelo cliente:
+-- uma policy baseada apenas em usuario_id permitiria ao próprio usuário
+-- trocar empresa_id, perfil ou perfil_acesso_id.
 drop policy if exists "usuarios_update_proprio" on public.usuarios;
-create policy "usuarios_update_proprio" on public.usuarios
-for update to authenticated
-using (usuario_id = auth.uid())
-with check (usuario_id = auth.uid());
 
 -- =========================================================
 -- RLS: perfis_usuario

@@ -73,6 +73,7 @@ export default function HomePage() {
 
   return (
     <main
+      className="login-shell"
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
@@ -81,6 +82,7 @@ export default function HomePage() {
       }}
     >
       <section
+        className="login-form-panel"
         style={{
           background: "#f5f5f6",
           display: "flex",
@@ -242,6 +244,7 @@ export default function HomePage() {
       </section>
 
       <section
+        className="login-promo-panel"
         style={{
           background:
             "linear-gradient(135deg, #0b1220 0%, #172554 55%, #0f766e 100%)",
