@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type Status = "planejada" | "ativa" | "finalizada" | "cancelada";
@@ -54,7 +55,7 @@ export default function CampanhasPage() {
     {showForm && <form onSubmit={handleCreate} style={formCard}><input required value={nome} onChange={(event) => setNome(event.target.value)} placeholder="Nome da campanha" style={input} /><select value={status} onChange={(event) => setStatus(event.target.value as Status)} style={input}>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><input type="number" min="0" value={orcamento} onChange={(event) => setOrcamento(event.target.value)} placeholder="Orçamento (R$)" style={input} /><input type="number" min="0" value={receita} onChange={(event) => setReceita(event.target.value)} placeholder="Receita prevista (R$)" style={input} /><button disabled={saving} style={primaryButton}>{saving ? "Salvando..." : "Salvar campanha"}</button></form>}
     {error && <div style={errorBox}>{error}</div>}
     <div style={summaryGrid}><Metric label="Campanhas ativas" value={totals.ativas} /><Metric label="Creators vinculados" value={totals.creators} /><Metric label="Receita prevista" value={money(totals.receita)} /></div>
-    {loading ? <div style={empty}>Carregando campanhas...</div> : campanhas.length === 0 ? <div style={empty}>Nenhuma campanha cadastrada ainda.</div> : <div style={grid}>{campanhas.map((campanha) => <div key={campanha.campanha_id} style={card}><div style={cardTop}><strong>{campanha.nome}</strong><span style={statusStyle(campanha.status)}>{labels[campanha.status]}</span></div><div style={metrics}><Metric label="Creators" value={campanha.creators} /><Metric label="Entregáveis" value={`${campanha.concluidos}/${campanha.total}`} /><Metric label="ROI" value={campanha.orcamento ? `${((Number(campanha.receita || 0) / Number(campanha.orcamento)) || 0).toFixed(1)}x` : "-"} /></div><div style={footer}><span>Custo: {money(campanha.orcamento)}</span><span>Receita: {money(campanha.receita)}</span></div></div>)}</div>}
+    {loading ? <div style={empty}>Carregando campanhas...</div> : campanhas.length === 0 ? <div style={empty}>Nenhuma campanha cadastrada ainda.</div> : <div style={grid}>{campanhas.map((campanha) => <Link key={campanha.campanha_id} href={`/campanhas/detail?id=${campanha.campanha_id}`} style={card}><div style={cardTop}><strong>{campanha.nome}</strong><span style={statusStyle(campanha.status)}>{labels[campanha.status]}</span></div><div style={metrics}><Metric label="Creators" value={campanha.creators} /><Metric label="Entregáveis" value={`${campanha.concluidos}/${campanha.total}`} /><Metric label="ROI" value={campanha.orcamento ? `${((Number(campanha.receita || 0) / Number(campanha.orcamento)) || 0).toFixed(1)}x` : "-"} /></div><div style={footer}><span>Custo: {money(campanha.orcamento)}</span><span>Receita: {money(campanha.receita)}</span></div></Link>)}</div>}
   </div>;
 }
 
@@ -68,7 +69,7 @@ const input = { minWidth: 0, border: "1px solid #d1d5db", borderRadius: "7px", p
 const errorBox = { background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: "8px", padding: "10px", fontSize: "12px", marginBottom: "12px" };
 const summaryGrid = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "14px" };
 const grid = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px" };
-const card = { display: "block", background: "white", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" };
+const card = { display: "block", color: "inherit", textDecoration: "none", background: "white", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "14px" };
 const cardTop = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", fontSize: "13px" };
 const metrics = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "12px" };
 const metric = { display: "grid", gap: "4px", background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "9px", textAlign: "center" as const, fontSize: "10px", color: "#6b7280" };
