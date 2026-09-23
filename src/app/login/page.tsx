@@ -84,7 +84,7 @@ export default function HomePage() {
       <section
         className="login-form-panel"
         style={{
-          background: "#f5f5f6",
+          background: "linear-gradient(135deg, #ffffff 0%, #fbfbfd 70%, #f3efff 100%)",
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-start",
@@ -101,8 +101,8 @@ export default function HomePage() {
                 width: "40px",
                 height: "40px",
                 borderRadius: "12px",
-                background: "linear-gradient(to right, #0f766e, #14b8a6)",
-                color: "white",
+                background: "#b8ff00",
+                color: "#29272d",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -115,7 +115,7 @@ export default function HomePage() {
               style={{
                 fontSize: "24px",
                 fontWeight: 600,
-                color: "#111827",
+                color: "#29272d",
                 margin: 0,
               }}
             >
@@ -199,7 +199,7 @@ export default function HomePage() {
     href="/forgot-password"
     style={{
       fontSize: "13px",
-      color: "#0d9488",
+      color: "#7654c7",
       textDecoration: "none",
       fontWeight: 500,
     }}
@@ -213,12 +213,12 @@ export default function HomePage() {
               disabled={loading}
               style={{
                 width: "100%",
-                borderRadius: "6px",
-                background: "linear-gradient(to right, #0f766e, #14b8a6)",
+                borderRadius: "999px",
+                background: "#b8ff00",
                 padding: "10px 12px",
                 fontSize: "14px",
                 fontWeight: 500,
-                color: "white",
+                color: "#29272d",
                 border: "none",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.8 : 1,
@@ -247,7 +247,7 @@ export default function HomePage() {
         className="login-promo-panel"
         style={{
           background:
-            "linear-gradient(135deg, #0b1220 0%, #172554 55%, #0f766e 100%)",
+            "linear-gradient(135deg, #29272d 0%, #393344 55%, #7654c7 100%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -273,7 +273,7 @@ export default function HomePage() {
               maxWidth: "340px",
               fontSize: "14px",
               lineHeight: 1.5,
-              color: "rgba(255,255,255,0.65)",
+              color: "rgba(255,255,255,0.78)",
             }}
           >
             CRM, analytics, campanhas e IA integrados em uma única plataforma premium.
