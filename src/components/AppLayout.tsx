@@ -559,7 +559,7 @@ const shell = {
 
 const sidebar = {
   width: "240px",
-  background: "linear-gradient(180deg, #2d1b69 0%, #241554 48%, #1a103f 100%)",
+  background: "linear-gradient(180deg, #2f2d33 0%, #29272d 52%, #201f24 100%)",
   color: "white",
   padding: "16px 12px",
   display: "flex",
@@ -582,14 +582,14 @@ const brandMark = {
   width: "36px",
   height: "36px",
   borderRadius: "12px",
-  background: "#c5e000",
-  color: "#1a1a2e",
+  background: "#b8ff00",
+  color: "#29272d",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontSize: "15px",
   fontWeight: 900,
-  boxShadow: "0 10px 24px rgba(197,224,0,0.28)",
+  boxShadow: "0 10px 24px rgba(184,255,0,0.26)",
   flexShrink: 0,
 };
 
@@ -638,10 +638,10 @@ const groupSummaryStyle = {
 
 const groupSummaryActiveStyle = {
   ...groupSummaryStyle,
-  color: "#1a1a2e",
-  background: "#c5e000",
-  border: "1px solid rgba(197,224,0,0.95)",
-  boxShadow: "0 10px 26px rgba(197,224,0,0.26)",
+  color: "#29272d",
+  background: "#b8ff00",
+  border: "1px solid rgba(184,255,0,0.95)",
+  boxShadow: "0 10px 26px rgba(184,255,0,0.24)",
 };
 
 const chevronStyle = {
@@ -667,9 +667,9 @@ const navSubItemStyle = {
 
 const navSubItemActiveStyle = {
   ...navSubItemStyle,
-  color: "#c5e000",
-  background: "rgba(197,224,0,0.10)",
-  border: "1px solid rgba(197,224,0,0.18)",
+  color: "#b8ff00",
+  background: "rgba(184,255,0,0.10)",
+  border: "1px solid rgba(184,255,0,0.18)",
   fontWeight: 800,
   transform: "translateX(2px)",
 };
@@ -678,8 +678,8 @@ const activeIndicatorStyle = {
   width: "3px",
   height: "18px",
   borderRadius: "999px",
-  background: "#c5e000",
-  boxShadow: "0 0 14px rgba(197,224,0,0.70)",
+  background: "#b8ff00",
+  boxShadow: "0 0 14px rgba(184,255,0,0.65)",
   flexShrink: 0,
 };
 
@@ -762,8 +762,8 @@ const avatar = {
   width: "38px",
   height: "38px",
   borderRadius: "999px",
-  background: "#2d1b69",
-  color: "#c5e000",
+  background: "#a77bff",
+  color: "#ffffff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
