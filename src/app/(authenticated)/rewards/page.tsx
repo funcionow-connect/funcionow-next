@@ -1,21 +1,27 @@
-
+"use client";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function RewardsPage() {
-  const ranking = [
+  const demoRanking = [
     { pos: 1, nome: "Ana Beatriz Costa", user: "@anabcosta", pontos: 2450, emoji: "🥇" },
     { pos: 2, nome: "Pedro Oliveira", user: "@pedrowellness", pontos: 2280, emoji: "🥈" },
     { pos: 3, nome: "Camila Rocha", user: "@camilabeauty", pontos: 2100, emoji: "🥉" },
     { pos: 4, nome: "Lucas Mendes", user: "@lucasmkt", pontos: 1950, emoji: "👤" },
     { pos: 5, nome: "Juliana Ferreira", user: "@juliafit", pontos: 1720, emoji: "👤" },
   ];
+  const [ranking, setRanking] = useState(demoRanking);
+  const [dataSource, setDataSource] = useState<"demo" | "supabase">("demo");
+  useEffect(() => { const load = async () => { const { data: { session } } = await supabase.auth.getSession(); if (!session?.user) return; const { data: user } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle(); if (!user?.empresa_id) return; const { data } = await supabase.from("creators").select("nome, instagram, score_total").eq("empresa_id", user.empresa_id).eq("status", "aprovado").order("score_total", { ascending: false, nullsFirst: false }).limit(10); if (data?.length) { const scores = data.map((item) => Number(item.score_total || 0)); const average = scores.reduce((sum, score) => sum + score, 0) / scores.length; setRanking(data.map((item, index) => ({ pos: index + 1, nome: item.nome, user: item.instagram || "Creator", pontos: Math.round(item.score_total || 0), emoji: index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : "👤" }))); setMetas((current) => current.map((meta, index) => index === 1 ? { ...meta, pct: Math.min(100, Math.round(average)) } : index === 0 ? { ...meta, pct: Math.min(100, data.length * 10) } : meta)); setBadges((current) => current.map((badge) => badge.nome === "Top Creator" ? { ...badge, active: data.length >= 3 } : badge)); setDataSource("supabase"); } const { count } = await supabase.from("academy_progresso").select("progresso_id", { count: "exact", head: true }).eq("usuario_id", session.user.id); if (count !== null) setMetas((current) => current.map((meta, index) => index === 2 ? { ...meta, pct: Math.min(100, count * 10) } : meta)); }; void load(); }, []);
 
-  const metas = [
+  const demoMetas = [
     { nome: "Atingir 5 entregáveis no mês", pct: 60 },
     { nome: "Manter engajamento acima de 4%", pct: 100 },
     { nome: "Completar trilha Academy", pct: 60 },
   ];
+  const [metas, setMetas] = useState(demoMetas);
 
-  const badges = [
+  const demoBadges = [
     { nome: "Primeiro Post", desc: "Publicou o primeiro conteúdo", icon: "🏆", active: true },
     { nome: "Engajamento Alto", desc: "Atingiu 5% de engajamento", icon: "🔥", active: true },
     { nome: "Top Creator", desc: "Ficou no top 3 do ranking", icon: "⭐", active: true },
@@ -23,12 +29,17 @@ export default function RewardsPage() {
     { nome: "Mentor", desc: "Compartilhou boas práticas", icon: "🪨", active: false },
     { nome: "Viral", desc: "Conteúdo passou de 100k views", icon: "🕊️", active: false },
   ];
+  const [badges, setBadges] = useState(demoBadges);
+  const [rewardMessage, setRewardMessage] = useState("");
+  const metasConcluidas = metas.filter((meta) => meta.pct >= 100).length;
+  const spin = async () => { if (metasConcluidas < metas.length) { setRewardMessage("Complete todas as metas para girar a roda."); return; } const rewards = ["Consultoria de conteúdo", "Destaque na Community", "Bônus de campanha"]; const prize = rewards[Math.floor(Math.random() * rewards.length)]; const { data: { session } } = await supabase.auth.getSession(); if (session?.user) { const { data: user } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle(); if (user?.empresa_id) await supabase.from("reward_events").insert({ empresa_id: user.empresa_id, usuario_id: session.user.id, tipo: "premio", codigo: prize.toLowerCase().replaceAll(" ", "_"), descricao: prize }); } setRewardMessage(`Prêmio sorteado: ${prize}`); };
 
   return (
       <div>
         <div style={{ marginBottom: "16px" }}>
           <h1 style={title}>Rewards</h1>
           <p style={subtitle}>Gamificação, metas e recompensas para creators</p>
+          {dataSource === "demo" && <div style={notice}>O ranking exibido é demonstrativo até haver creators aprovados com score cadastrado.</div>}
         </div>
 
         <div
@@ -103,7 +114,8 @@ export default function RewardsPage() {
               <div style={{ fontSize: "11px", opacity: 0.95, marginBottom: "12px" }}>
                 Complete metas para girar a roda
               </div>
-              <button style={spinButton}>Girar Roda</button>
+              <button type="button" onClick={spin} style={spinButton}>Girar Roda</button>
+              {rewardMessage && <div style={{ fontSize: "11px", marginTop: "10px", color: "white" }}>{rewardMessage}</div>}
             </div>
           </div>
         </div>
@@ -145,6 +157,7 @@ const subtitle = {
   color: "#6b7280",
   marginTop: "4px",
 };
+const notice = { background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", borderRadius: "8px", padding: "9px 11px", fontSize: "11px", marginTop: "10px" };
 
 const card = {
   background: "white",
