@@ -87,7 +87,7 @@ window.location.href = "/login";
     >
       <section
         style={{
-          background: "#f5f5f6",
+          background: "linear-gradient(135deg, #ffffff 0%, #fbfbfd 70%, #f3efff 100%)",
           display: "flex",
           justifyContent: "center",
           alignItems: "flex-start",
@@ -105,8 +105,8 @@ window.location.href = "/login";
                 width: "40px",
                 height: "40px",
                 borderRadius: "12px",
-                background: "linear-gradient(to right, #0f766e, #14b8a6)",
-                color: "white",
+                background: "#b8ff00",
+                color: "#29272d",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -119,7 +119,7 @@ window.location.href = "/login";
               style={{
                 fontSize: "24px",
                 fontWeight: 600,
-                color: "#111827",
+                color: "#29272d",
                 margin: 0,
               }}
             >
@@ -245,7 +245,7 @@ window.location.href = "/login";
               }}
             >
               Já tem conta?{" "}
-              <a href="/" style={{ color: "#0d9488" }}>
+              <a href="/" style={{ color: "#7654c7" }}>
                 Entrar
               </a>
             </p>
@@ -256,7 +256,7 @@ window.location.href = "/login";
       <section
         style={{
           background:
-            "linear-gradient(135deg, #0b1220 0%, #172554 55%, #0f766e 100%)",
+            "linear-gradient(135deg, #29272d 0%, #393344 55%, #7654c7 100%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -337,9 +337,9 @@ const inputWithButtonStyle = {
 const buttonStyle = {
   width: "100%",
   borderRadius: "6px",
-  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+  background: "#b8ff00",
   padding: "10px",
-  color: "white",
+  color: "#29272d",
   border: "none",
   cursor: "pointer",
   fontWeight: 600,
@@ -375,9 +375,9 @@ const tipoCadastroButton = {
 };
 
 const tipoCadastroButtonActive = {
-  background: "#ccfbf1",
-  color: "#0f766e",
-  border: "1px solid #14b8a6",
+  background: "#f3efff",
+  color: "#7654c7",
+  border: "1px solid #a77bff",
 };
 
 const modalOverlay = {
@@ -409,8 +409,8 @@ const successIcon = {
   margin: "0 auto 20px",
   borderRadius: "999px",
   border: "1px solid #99f6e4",
-  background: "#f0fdfa",
-  color: "#0f766e",
+  background: "#f3efff",
+  color: "#7654c7",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -438,8 +438,8 @@ const companyBox = {
   alignItems: "center",
   gap: "14px",
   textAlign: "left" as const,
-  background: "#f0fdfa",
-  border: "1px solid #ccfbf1",
+  background: "#f3efff",
+  border: "1px solid #e5def8",
   borderRadius: "12px",
   padding: "16px",
   marginBottom: "24px",
@@ -450,7 +450,7 @@ const companyIcon = {
   height: "38px",
   borderRadius: "10px",
   background: "white",
-  color: "#0f766e",
+  color: "#7654c7",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -459,7 +459,7 @@ const companyIcon = {
 
 const companyLabel = {
   fontSize: "12px",
-  color: "#0f766e",
+  color: "#7654c7",
   fontWeight: 700,
   marginBottom: "4px",
 };
@@ -474,8 +474,8 @@ const modalButton = {
   width: "100%",
   border: "none",
   borderRadius: "12px",
-  background: "linear-gradient(to right, #0f766e, #14b8a6)",
-  color: "white",
+  background: "#b8ff00",
+  color: "#29272d",
   padding: "14px 18px",
   fontSize: "15px",
   fontWeight: 800,

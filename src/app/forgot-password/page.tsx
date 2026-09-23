@@ -74,7 +74,7 @@ export default function ForgotPasswordPage() {
 
 const mainStyle = {
   minHeight: "100vh",
-  background: "#f5f5f6",
+  background: "linear-gradient(135deg, #ffffff 0%, #fbfbfd 70%, #f3efff 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -119,19 +119,19 @@ const inputStyle = {
 const buttonStyle = {
   width: "100%",
   borderRadius: "8px",
-  background: "linear-gradient(to right, #0f766e, #14b8a6)",
+  background: "#b8ff00",
   padding: "11px 12px",
   fontSize: "14px",
   fontWeight: 600,
-  color: "white",
+  color: "#29272d",
   border: "none",
   cursor: "pointer",
 };
 
 const successBox = {
-  background: "#f0fdfa",
-  color: "#0f766e",
-  border: "1px solid #ccfbf1",
+  background: "#f3efff",
+  color: "#7654c7",
+  border: "1px solid #e5def8",
   borderRadius: "10px",
   padding: "12px",
   fontSize: "14px",
@@ -143,6 +143,6 @@ const linkStyle = {
   marginTop: "18px",
   textAlign: "center" as const,
   fontSize: "14px",
-  color: "#0d9488",
+  color: "#7654c7",
   textDecoration: "none",
 };
