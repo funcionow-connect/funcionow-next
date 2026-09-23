@@ -26,6 +26,15 @@ type Reuniao = {
   titulo: string;
 };
 
+type PrazoCampanha = {
+  entregavel_id: string;
+  titulo: string;
+  prazo: string | null;
+  status: string;
+  campanha_id: string;
+  campanhas?: { nome: string } | null;
+};
+
 type EventoCalendario = {
   evento_id: string;
   empresa_id: string;
@@ -76,6 +85,7 @@ export default function CalendarioPage() {
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [tarefas, setTarefas] = useState<Tarefa[]>([]);
   const [reunioes, setReunioes] = useState<Reuniao[]>([]);
+  const [prazosCampanhas, setPrazosCampanhas] = useState<PrazoCampanha[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -181,7 +191,7 @@ export default function CalendarioPage() {
 
       setUsuarioAtual(usuario);
 
-      const [projetosResult, tarefasResult, reunioesResult, eventosResult] =
+      const [projetosResult, tarefasResult, reunioesResult, eventosResult, prazosResult] =
         await Promise.all([
           supabase
             .from("projetos")
@@ -215,17 +225,26 @@ export default function CalendarioPage() {
             )
             .eq("empresa_id", usuario.empresa_id)
             .order("data_inicio", { ascending: true }),
+
+          supabase
+            .from("campanha_entregaveis")
+            .select("entregavel_id, titulo, prazo, status, campanha_id, campanhas!inner(nome, empresa_id)")
+            .eq("campanhas.empresa_id", usuario.empresa_id)
+            .not("prazo", "is", null)
+            .order("prazo", { ascending: true }),
         ]);
 
       if (projetosResult.error) throw projetosResult.error;
       if (tarefasResult.error) throw tarefasResult.error;
       if (reunioesResult.error) throw reunioesResult.error;
       if (eventosResult.error) throw eventosResult.error;
+      if (prazosResult.error) console.error("Erro ao carregar prazos de campanhas:", prazosResult.error);
 
       setProjetos((projetosResult.data ?? []) as Projeto[]);
       setTarefas((tarefasResult.data ?? []) as Tarefa[]);
       setReunioes((reunioesResult.data ?? []) as Reuniao[]);
       setEventos((eventosResult.data ?? []) as EventoCalendario[]);
+      setPrazosCampanhas((prazosResult.data ?? []).map((item) => ({ ...item, campanhas: Array.isArray(item.campanhas) ? item.campanhas[0] ?? null : item.campanhas })) as unknown as PrazoCampanha[]);
     } catch (error) {
       console.error("Erro inesperado ao carregar calendário:", error);
       alert("Erro inesperado ao carregar calendário.");
@@ -300,6 +319,12 @@ export default function CalendarioPage() {
       console.error("Erro inesperado ao excluir evento:", error);
       alert("Erro inesperado ao excluir evento.");
     }
+  };
+
+  const atualizarStatusPrazo = async (prazo: PrazoCampanha, status: string) => {
+    const { error } = await supabase.from("campanha_entregaveis").update({ status }).eq("entregavel_id", prazo.entregavel_id);
+    if (error) { alert("Não foi possível atualizar o status do entregável."); return; }
+    setPrazosCampanhas((current) => current.map((item) => item.entregavel_id === prazo.entregavel_id ? { ...item, status } : item));
   };
 
   useEffect(() => {
@@ -499,6 +524,15 @@ export default function CalendarioPage() {
             </div>
           )}
         </section>
+        <section style={eventsSectionStyle}>
+          <div style={filtersStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>Prazos de campanhas</h2>
+              <p style={sectionDescriptionStyle}>Entregáveis com prazo cadastrado aparecem aqui para acompanhamento operacional.</p>
+            </div>
+          </div>
+          {loading ? <EmptyState text="Carregando prazos..." /> : prazosCampanhas.length === 0 ? <EmptyState text="Nenhum prazo de campanha cadastrado." /> : <div style={eventsGridStyle}>{prazosCampanhas.slice(0, 12).map((prazo) => { const atrasado = prazo.prazo ? new Date(`${prazo.prazo}T23:59:59`).getTime() < Date.now() && !["entregue", "aprovado"].includes(prazo.status) : false; return <article key={prazo.entregavel_id} style={eventCardStyle}><div style={eventHeaderStyle}><div><div style={eventTypeLineStyle}><span style={{ ...typeDotStyle, background: atrasado ? "#f59e0b" : "#0f766e" }} />Campanha</div><h3 style={eventTitleStyle}>{prazo.titulo}</h3><p style={dateTextStyle}>{prazo.campanhas?.nome || "Campanha"} · Prazo: {prazo.prazo ? new Date(`${prazo.prazo}T12:00:00`).toLocaleDateString("pt-BR") : "Sem data"}</p></div><select aria-label={`Status de ${prazo.titulo}`} value={prazo.status} onChange={(event) => void atualizarStatusPrazo(prazo, event.target.value)} style={inputStyle}>{["pendente", "em_producao", "entregue", "aprovado", "reprovado"].map((status) => <option key={status} value={status}>{formatarStatusPrazo(status)}</option>)}</select></div></article>; })}</div>}
+        </section>
       </div>
     </main>
   );
@@ -534,6 +568,11 @@ function EmptyState({ text }: { text: string }) {
 function formatarTipo(tipo: EventoCalendario["tipo"]) {
   const item = tipoOptions.find((option) => option.value === tipo);
   return item?.label ?? tipo;
+}
+
+function formatarStatusPrazo(status: string) {
+  const mapa: Record<string, string> = { pendente: "Pendente", em_producao: "Em produção", entregue: "Entregue", aprovado: "Aprovado", reprovado: "Reprovado" };
+  return mapa[status] ?? status;
 }
 
 function formatarDataHora(data: string) {

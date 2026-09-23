@@ -66,6 +66,8 @@ type MembroEquipe = {
   cargo: string | null;
   status: string | null;
 };
+type CampanhaOperacao = { campanha_id: string; nome: string; status: string; data_fim: string | null };
+type EntregavelOperacao = { entregavel_id: string; titulo: string; status: string; prazo: string | null; campanha_id: string };
 
 export default function OperacaoDashboardPage() {
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual | null>(null);
@@ -75,6 +77,8 @@ export default function OperacaoDashboardPage() {
   const [notas, setNotas] = useState<Nota[]>([]);
   const [eventos, setEventos] = useState<EventoCalendario[]>([]);
   const [membros, setMembros] = useState<MembroEquipe[]>([]);
+  const [campanhas, setCampanhas] = useState<CampanhaOperacao[]>([]);
+  const [entregaveis, setEntregaveis] = useState<EntregavelOperacao[]>([]);
   const [loading, setLoading] = useState(true);
 
   const hoje = useMemo(() => {
@@ -118,6 +122,9 @@ export default function OperacaoDashboardPage() {
     .slice(0, 5);
 
   const membrosAtivos = membros.filter((membro) => membro.status === "ativo");
+  const campanhasAtivas = campanhas.filter((campanha) => campanha.status === "ativa");
+  const entregaveisAbertos = entregaveis.filter((item) => !["entregue", "aprovado"].includes(item.status));
+  const entregaveisAtrasados = entregaveisAbertos.filter((item) => item.prazo && new Date(`${item.prazo}T23:59:59`) < new Date());
 
   const carregarDashboard = async () => {
     try {
@@ -166,6 +173,7 @@ export default function OperacaoDashboardPage() {
         notasResult,
         eventosResult,
         membrosResult,
+        campanhasResult,
       ] = await Promise.all([
         supabase
           .from("projetos")
@@ -207,6 +215,12 @@ export default function OperacaoDashboardPage() {
           .select("membro_id, nome, tipo_membro, cargo, status")
           .eq("empresa_id", empresaId)
           .order("nome", { ascending: true }),
+
+        supabase
+          .from("campanhas")
+          .select("campanha_id, nome, status, data_fim")
+          .eq("empresa_id", empresaId)
+          .order("criado_em", { ascending: false }),
       ]);
 
       if (projetosResult.error) console.error("Erro ao carregar projetos:", projetosResult.error);
@@ -215,6 +229,7 @@ export default function OperacaoDashboardPage() {
       if (notasResult.error) console.error("Erro ao carregar notas:", notasResult.error);
       if (eventosResult.error) console.error("Erro ao carregar eventos:", eventosResult.error);
       if (membrosResult.error) console.error("Erro ao carregar membros:", membrosResult.error);
+      if (campanhasResult.error) console.error("Erro ao carregar campanhas:", campanhasResult.error);
 
       setProjetos((projetosResult.data ?? []) as Projeto[]);
       setTarefas((tarefasResult.data ?? []) as Tarefa[]);
@@ -222,6 +237,13 @@ export default function OperacaoDashboardPage() {
       setNotas((notasResult.data ?? []) as Nota[]);
       setEventos((eventosResult.data ?? []) as EventoCalendario[]);
       setMembros((membrosResult.data ?? []) as MembroEquipe[]);
+      const campanhaData = (campanhasResult.data ?? []) as CampanhaOperacao[];
+      setCampanhas(campanhaData);
+      const campanhaIds = campanhaData.map((campanha) => campanha.campanha_id);
+      if (campanhaIds.length) {
+        const { data: entregavelData } = await supabase.from("campanha_entregaveis").select("entregavel_id, titulo, status, prazo, campanha_id").in("campanha_id", campanhaIds).order("prazo", { ascending: true });
+        setEntregaveis((entregavelData ?? []) as EntregavelOperacao[]);
+      }
     } catch (error) {
       console.error("Erro inesperado ao carregar dashboard:", error);
       alert("Erro inesperado ao carregar o dashboard operacional.");
@@ -262,6 +284,16 @@ export default function OperacaoDashboardPage() {
             </Link>
           </div>
         </header>
+
+        {!loading && entregaveisAtrasados.length > 0 && (
+          <section style={overdueAlertStyle}>
+            <div>
+              <strong style={overdueTitleStyle}>Atenção: existem {entregaveisAtrasados.length} entregável(is) atrasado(s)</strong>
+              <p style={overdueTextStyle}>Revise os prazos de campanhas e atualize os responsáveis no Calendário Operacional.</p>
+            </div>
+            <Link href="/operacao/calendario" style={overdueLinkStyle}>Revisar prazos</Link>
+          </section>
+        )}
 
         <section style={metricsGridStyle}>
           <MetricCard
@@ -305,6 +337,17 @@ export default function OperacaoDashboardPage() {
             label="Tarefas concluídas"
             value={tarefasConcluidas.length}
             description="Execuções finalizadas"
+          />
+          <MetricCard
+            label="Campanhas ativas"
+            value={campanhasAtivas.length}
+            description="Campanhas em andamento"
+          />
+          <MetricCard
+            label="Prazos atrasados"
+            value={entregaveisAtrasados.length}
+            description="Entregáveis vencidos"
+            danger={entregaveisAtrasados.length > 0}
           />
         </section>
 
@@ -366,6 +409,29 @@ export default function OperacaoDashboardPage() {
           </div>
 
           <div style={rightColumnStyle}>
+            <Panel
+              title="Prazos de campanhas"
+              actionLabel="Ver calendário"
+              actionHref="/operacao/calendario"
+            >
+              {loading ? (
+                <EmptyText text="Carregando prazos..." />
+              ) : entregaveisAbertos.length === 0 ? (
+                <EmptyText text="Nenhum prazo pendente." />
+              ) : (
+                <div style={listStyle}>
+                  {entregaveisAbertos.slice(0, 5).map((entregavel) => (
+                    <ItemCard key={entregavel.entregavel_id}>
+                      <strong style={itemTitleStyle}>{entregavel.titulo}</strong>
+                      <p style={itemMetaStyle}>
+                        {entregavel.prazo ? `Prazo: ${formatarData(entregavel.prazo)}` : "Sem prazo definido"}
+                        {entregavel.prazo && new Date(`${entregavel.prazo}T23:59:59`) < new Date() ? " · Atrasado" : ""}
+                      </p>
+                    </ItemCard>
+                  ))}
+                </div>
+              )}
+            </Panel>
             <Panel title="Atalhos rápidos" actionLabel="" actionHref="">
               <div style={quickGridStyle}>
                 <QuickLink href="/operacao/projetos" label="Projetos" />
@@ -633,6 +699,22 @@ const headerActionsStyle: React.CSSProperties = {
   flexWrap: "wrap",
   justifyContent: "flex-end",
 };
+
+const overdueAlertStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "16px",
+  marginBottom: "24px",
+  padding: "14px 16px",
+  borderRadius: "14px",
+  border: "1px solid #fed7aa",
+  background: "#fff7ed",
+};
+
+const overdueTitleStyle: React.CSSProperties = { display: "block", color: "#9a3412", fontSize: "14px" };
+const overdueTextStyle: React.CSSProperties = { margin: "5px 0 0", color: "#c2410c", fontSize: "12px" };
+const overdueLinkStyle: React.CSSProperties = { color: "#9a3412", fontSize: "12px", fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" };
 
 const primaryButtonStyle: React.CSSProperties = {
   borderRadius: "999px",

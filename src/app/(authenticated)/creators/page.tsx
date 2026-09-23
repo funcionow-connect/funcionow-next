@@ -421,6 +421,13 @@ export default function CreatorsPage() {
     return null;
   };
 
+  const resumoCreators = {
+    total: creators.length,
+    aprovados: creators.filter((creator) => creator.status === "aprovado").length,
+    emAnalise: creators.filter((creator) => creator.status === "em_analise").length,
+    comInstagram: creators.filter((creator) => Boolean(creator.instagram)).length,
+  };
+
   const formatScore = (value: number | null) => {
     if (value === null || value === undefined) return "-";
     return Number(value).toLocaleString("pt-BR", {
@@ -748,6 +755,13 @@ export default function CreatorsPage() {
               + Novo Creator
             </button>
           )}
+        </div>
+
+        <div style={summaryGridStyle}>
+          <CreatorSummary label="Total" value={resumoCreators.total} color="#111827" />
+          <CreatorSummary label="Aprovados" value={resumoCreators.aprovados} color="#166534" />
+          <CreatorSummary label="Em análise" value={resumoCreators.emAnalise} color="#92400e" />
+          <CreatorSummary label="Com Instagram" value={resumoCreators.comInstagram} color="#1d4ed8" />
         </div>
 
         <div
@@ -1191,11 +1205,20 @@ export default function CreatorsPage() {
   );
 }
 
+function CreatorSummary({ label, value, color }: { label: string; value: number; color: string }) {
+  return <div style={summaryCardStyle}><span style={summaryLabelStyle}>{label}</span><strong style={{ ...summaryValueStyle, color }}>{value}</strong></div>;
+}
+
 const metricBox = {
   background: "#f3f4f6",
   borderRadius: "8px",
   padding: "8px",
 };
+
+const summaryGridStyle = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "10px", marginBottom: "12px" };
+const summaryCardStyle = { background: "white", border: "1px solid #e5e7eb", borderRadius: "9px", padding: "11px 12px", display: "grid", gap: "5px" };
+const summaryLabelStyle = { color: "#6b7280", fontSize: "10px" };
+const summaryValueStyle = { fontSize: "20px", lineHeight: 1 };
 
 const metricLabel = {
   fontSize: "11px",

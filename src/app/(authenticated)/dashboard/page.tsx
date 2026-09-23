@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type Campaign = { campanha_id: string; nome: string; status: string; orcamento: number | null; receita: number | null };
+type Deliverable = { entregavel_id: string; titulo: string; status: string; prazo: string | null; campanha_id: string };
+
 export default function DashboardPage() {
   const [creators, setCreators] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -34,6 +39,21 @@ export default function DashboardPage() {
         .eq("empresa_id", usuario?.empresa_id);
 
       setCreators(data || []);
+      const { data: campaignData } = await supabase
+        .from("campanhas")
+        .select("campanha_id, nome, status, orcamento, receita")
+        .eq("empresa_id", usuario?.empresa_id)
+        .order("criado_em", { ascending: false });
+      setCampaigns(campaignData || []);
+      const campaignIds = (campaignData || []).map((campaign) => campaign.campanha_id);
+      if (campaignIds.length) {
+        const { data: deliverableData } = await supabase
+          .from("campanha_entregaveis")
+          .select("entregavel_id, titulo, status, prazo, campanha_id")
+          .in("campanha_id", campaignIds)
+          .order("prazo", { ascending: true });
+        setDeliverables(deliverableData || []);
+      }
     };
 
     setTimeout(loadData, 300);
@@ -43,6 +63,12 @@ export default function DashboardPage() {
   const aprovados = creators.filter((c) => c.status === "aprovado").length;
   const analise = creators.filter((c) => c.status === "em_analise").length;
   const reprovados = creators.filter((c) => c.status === "reprovado").length;
+  const activeCampaigns = campaigns.filter((campaign) => campaign.status === "ativa").length;
+  const campaignRevenue = campaigns.reduce((sum, campaign) => sum + Number(campaign.receita || 0), 0);
+  const campaignBudget = campaigns.reduce((sum, campaign) => sum + Number(campaign.orcamento || 0), 0);
+  const campaignRoi = campaignBudget ? `${(campaignRevenue / campaignBudget).toFixed(1)}x` : "—";
+  const pendingDeliverables = deliverables.filter((item) => !["entregue", "aprovado"].includes(item.status));
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
 
   return (
           <div style={{ background: "#f5f5f6" }}>
@@ -85,8 +111,27 @@ export default function DashboardPage() {
           <Card label="Aprovados" value={aprovados} />
           <Card label="Em Análise" value={analise} />
           <Card label="Reprovados" value={reprovados} />
-          <Card label="Receita Gerada" value="—" />
-          <Card label="ROI Médio" value="—" />
+          <Card label="Receita de Campanhas" value={money(campaignRevenue)} />
+          <Card label="ROI de Campanhas" value={campaignRoi} />
+          <Card label="Campanhas Ativas" value={activeCampaigns} />
+          <Card label="Entregáveis Pendentes" value={pendingDeliverables.length} />
+        </div>
+
+        <div style={dashboardGrid}>
+          <div style={{ ...panelStyle, marginTop: 12 }}>
+            <div style={panelHeader}><div style={panelTitle}>Campanhas recentes</div><a href="/campanhas" style={panelLink}>Ver todas</a></div>
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {campaigns.slice(0, 5).map((campaign) => <div key={campaign.campanha_id} style={listRow}><span>{campaign.nome}</span><span style={statusBadge}>{campaign.status}</span></div>)}
+              {!campaigns.length && <span style={muted}>Nenhuma campanha cadastrada.</span>}
+            </div>
+          </div>
+          <div style={{ ...panelStyle, marginTop: 12 }}>
+            <div style={panelHeader}><div style={panelTitle}>Próximos entregáveis</div><a href="/campanhas" style={panelLink}>Gerenciar</a></div>
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {pendingDeliverables.slice(0, 5).map((item) => <div key={item.entregavel_id} style={listRow}><span>{item.titulo}</span><span style={deadline}>{item.prazo ? new Intl.DateTimeFormat("pt-BR").format(new Date(`${item.prazo}T12:00:00`)) : "Sem prazo"}</span></div>)}
+              {!pendingDeliverables.length && <span style={muted}>Nenhum entregável pendente.</span>}
+            </div>
+          </div>
         </div>
 
         <div style={{ ...panelStyle, marginTop: 12 }}>
@@ -123,9 +168,17 @@ function Card({ label, value }: any) {
 
 const grid6 = {
   display: "grid",
-  gridTemplateColumns: "repeat(6, 1fr)",
+  gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
   gap: "10px",
 };
+
+const dashboardGrid = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" };
+const panelHeader = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" };
+const panelLink = { color: "#0f766e", fontSize: "11px", textDecoration: "none", fontWeight: 600 };
+const listRow = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", fontSize: "12px", borderBottom: "1px solid #f1f5f9", paddingBottom: "8px" };
+const statusBadge = { color: "#0f766e", fontSize: "11px", fontWeight: 600 };
+const deadline = { color: "#64748b", fontSize: "11px" };
+const muted = { color: "#94a3b8", fontSize: "12px" };
 
 const miniCard = {
   background: "white",

@@ -888,6 +888,13 @@ export default function EquipePage() {
     return value;
   };
 
+  const resumoEquipe = {
+    ativos: membros.filter((membro) => membro.status === "ativo").length,
+    inativos: membros.filter((membro) => membro.status === "inativo").length,
+    colaboradores: membros.filter((membro) => membro.tipo_membro === "colaborador").length,
+    terceirizados: membros.filter((membro) => membro.tipo_membro === "terceirizado").length,
+  };
+
   return (
       <div>
         <div style={pageHeader}>
@@ -911,6 +918,13 @@ export default function EquipePage() {
               </button>
             </div>
           )}
+        </div>
+
+        <div style={summaryGrid}>
+          <SummaryCard label="Ativos" value={resumoEquipe.ativos} color="#166534" />
+          <SummaryCard label="Inativos" value={resumoEquipe.inativos} color="#6b7280" />
+          <SummaryCard label="Colaboradores" value={resumoEquipe.colaboradores} color="#1d4ed8" />
+          <SummaryCard label="Terceirizados" value={resumoEquipe.terceirizados} color="#92400e" />
         </div>
 
         <div style={filtersRow}>
@@ -1799,6 +1813,10 @@ function accessBadge(usuarioId: string | null) {
   };
 }
 
+function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return <div style={summaryCard}><span style={summaryLabel}>{label}</span><strong style={{ ...summaryValue, color }}>{value}</strong></div>;
+}
+
 const headerActions = {
   display: "flex",
   gap: "8px",
@@ -1850,6 +1868,25 @@ const filtersRow = {
   gap: "10px",
   marginBottom: "16px",
 };
+
+const summaryGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: "10px",
+  marginBottom: "16px",
+};
+
+const summaryCard = {
+  background: "white",
+  border: "1px solid #e5e7eb",
+  borderRadius: "9px",
+  padding: "11px 12px",
+  display: "grid",
+  gap: "5px",
+};
+
+const summaryLabel = { color: "#6b7280", fontSize: "10px" };
+const summaryValue = { fontSize: "20px", lineHeight: 1 };
 
 const searchInput = {
   flex: 1,
