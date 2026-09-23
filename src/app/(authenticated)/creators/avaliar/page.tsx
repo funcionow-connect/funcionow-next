@@ -317,6 +317,9 @@ function AvaliarCreatorContent() {
     );
   }, [criterios]);
 
+  const criteriosRespondidos = useMemo(() => criterios.filter((criterio) => Boolean(respostas[criterio.criterio_id]?.valor)).length, [criterios, respostas]);
+  const criteriosPendentes = criterios.length - criteriosRespondidos;
+
   const notaPrevista = useMemo(() => {
     if (pesoMaximo <= 0) return 0;
     return Number(((pontuacaoBruta / pesoMaximo) * 10).toFixed(2));
@@ -353,6 +356,11 @@ function AvaliarCreatorContent() {
 
       if (criterios.length === 0) {
         alert("Nenhum critério cadastrado para esta empresa.");
+        return;
+      }
+
+      if (criteriosPendentes > 0) {
+        alert(`Responda todos os critérios antes de salvar. Faltam ${criteriosPendentes}.`);
         return;
       }
 
@@ -444,7 +452,12 @@ function AvaliarCreatorContent() {
           </a>
         </div>
 
-        <div style={card}>
+          <div style={card}>
+            <div style={progressHeader}><strong>Progresso da avaliação</strong><span>{criteriosRespondidos}/{criterios.length} respondidos</span></div>
+            <div style={progressTrack}><div style={{ ...progressFill, width: `${criterios.length ? (criteriosRespondidos / criterios.length) * 100 : 0}%` }} /></div>
+          </div>
+
+          <div style={card}>
           <div
             style={{
               display: "flex",
@@ -526,6 +539,12 @@ function AvaliarCreatorContent() {
             </div>
           </div>
         </div>
+
+        {configFunil && <div style={thresholdNotice}>
+          <span>Aprovação: <strong>{configFunil.min_score_aprovacao.toFixed(1)}</strong></span>
+          {configFunil.permitir_potencial && <span>Potencial: <strong>{configFunil.min_score_potencial.toFixed(1)}</strong></span>}
+          <span>Nota atual: <strong>{notaPrevista.toFixed(1)}</strong></span>
+        </div>}
 
         <div style={card}>
           <div
@@ -727,14 +746,14 @@ function AvaliarCreatorContent() {
             Cancelar
           </button>
 
-          <button
-            type="button"
-            onClick={handleSalvar}
-            disabled={saving}
-            style={primaryButton}
-          >
-            {saving ? "Salvando..." : "Salvar avaliação"}
-          </button>
+            <button
+              type="button"
+              onClick={handleSalvar}
+              disabled={saving || criteriosPendentes > 0}
+              style={primaryButton}
+            >
+              {saving ? "Salvando..." : criteriosPendentes > 0 ? `Responda os ${criteriosPendentes} critérios pendentes` : "Salvar avaliação"}
+            </button>
         </div>
       </div>
     
@@ -825,3 +844,8 @@ const secondaryButton = {
   fontWeight: 600,
   cursor: "pointer",
 };
+
+const progressHeader = { display: "flex", justifyContent: "space-between", gap: "8px", color: "#374151", fontSize: "12px", marginBottom: "8px" };
+const progressTrack = { width: "100%", height: "7px", background: "#e5e7eb", borderRadius: "999px", overflow: "hidden" as const };
+const progressFill = { height: "100%", background: "#0f766e", borderRadius: "999px", transition: "width 180ms ease" };
+const thresholdNotice = { display: "flex", gap: "16px", flexWrap: "wrap" as const, marginBottom: "12px", padding: "9px 12px", borderRadius: "8px", background: "#f8fafc", border: "1px solid #e5e7eb", color: "#64748b", fontSize: "11px" };

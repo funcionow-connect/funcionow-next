@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Campaign = { campanha_id: string; nome: string; descricao: string | null; status: string; data_inicio: string | null; data_fim: string | null; orcamento: number | null; receita: number | null };
-type CampaignCreator = { campanha_creator_id: string; creator_id: string; status: string; nome: string; instagram: string };
+type CampaignCreator = { campanha_creator_id: string; creator_id: string; status: string; custo: number | null; receita: number | null; alcance: number | null; cliques: number | null; conversoes: number | null; nome: string; instagram: string };
 type Deliverable = { entregavel_id: string; titulo: string; status: string; prazo: string | null; custo: number | null; receita: number | null; creator_id: string | null };
 
 const money = (value: number | null) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -30,6 +30,8 @@ export default function CampanhaDetailPage() {
   const [newCost, setNewCost] = useState("");
   const [newRevenue, setNewRevenue] = useState("");
   const [newCreator, setNewCreator] = useState("");
+  const [editingCreatorId, setEditingCreatorId] = useState<string | null>(null);
+  const [performanceForm, setPerformanceForm] = useState({ custo: "", receita: "", alcance: "", cliques: "", conversoes: "" });
   const [editing, setEditing] = useState(false);
   const [savingCampaign, setSavingCampaign] = useState(false);
   const [editName, setEditName] = useState("");
@@ -47,7 +49,7 @@ export default function CampanhaDetailPage() {
       const { data, error: campaignError } = await supabase.from("campanhas").select("campanha_id, nome, descricao, status, data_inicio, data_fim, orcamento, receita").eq("campanha_id", id).maybeSingle();
       if (campaignError || !data) { setError("Não foi possível carregar esta campanha."); setLoading(false); return; }
       const [{ data: links, error: linksError }, { data: items, error: itemsError }] = await Promise.all([
-        supabase.from("campanha_creators").select("campanha_creator_id, creator_id, status").eq("campanha_id", id),
+        supabase.from("campanha_creators").select("campanha_creator_id, creator_id, status, custo, receita, alcance, cliques, conversoes").eq("campanha_id", id),
         supabase.from("campanha_entregaveis").select("entregavel_id, titulo, status, prazo, custo, receita, creator_id").eq("campanha_id", id).order("prazo", { ascending: true }),
       ]);
       if (linksError || itemsError) { setError("A campanha foi encontrada, mas os dados complementares não puderam ser carregados."); setCampaign(data); setLoading(false); return; }
@@ -65,6 +67,9 @@ export default function CampanhaDetailPage() {
   }, [id]);
 
   const completed = deliverables.filter((item) => ["entregue", "aprovado"].includes(item.status)).length;
+  const creatorRevenue = creators.reduce((sum, creator) => sum + Number(creator.receita || 0), 0);
+  const creatorCost = creators.reduce((sum, creator) => sum + Number(creator.custo || 0), 0);
+  const creatorRoi = creatorCost ? `${(creatorRevenue / creatorCost).toFixed(1)}x` : "—";
   const roi = useMemo(() => campaign?.orcamento ? (Number(campaign.receita || 0) / Number(campaign.orcamento)).toFixed(1) : "-", [campaign]);
 
   const addDeliverable = async (event: FormEvent) => {
@@ -89,7 +94,7 @@ export default function CampanhaDetailPage() {
     if (insertError || !data) { setError(insertError?.message || "Não foi possível vincular o creator."); return; }
     const creator = availableCreators.find((item) => item.creator_id === creatorId);
     if (!creator) return;
-    setCreators((current) => [...current, { ...data, nome: creator.nome, instagram: creator.instagram }]);
+    setCreators((current) => [...current, { ...data, custo: 0, receita: 0, alcance: 0, cliques: 0, conversoes: 0, nome: creator.nome, instagram: creator.instagram }]);
     setAvailableCreators((current) => current.filter((item) => item.creator_id !== creatorId));
   };
 
@@ -97,6 +102,19 @@ export default function CampanhaDetailPage() {
     const { error: updateError } = await supabase.from("campanha_creators").update({ status }).eq("campanha_creator_id", creator.campanha_creator_id);
     if (updateError) { setError("Não foi possível atualizar o status do creator."); return; }
     setCreators((current) => current.map((item) => item.campanha_creator_id === creator.campanha_creator_id ? { ...item, status } : item));
+  };
+
+  const startPerformanceEdit = (creator: CampaignCreator) => {
+    setEditingCreatorId(creator.campanha_creator_id);
+    setPerformanceForm({ custo: String(creator.custo || ""), receita: String(creator.receita || ""), alcance: String(creator.alcance || ""), cliques: String(creator.cliques || ""), conversoes: String(creator.conversoes || "") });
+  };
+
+  const savePerformance = async (creator: CampaignCreator) => {
+    const values = { custo: Number(performanceForm.custo) || 0, receita: Number(performanceForm.receita) || 0, alcance: Number(performanceForm.alcance) || 0, cliques: Number(performanceForm.cliques) || 0, conversoes: Number(performanceForm.conversoes) || 0 };
+    const { error: updateError } = await supabase.from("campanha_creators").update(values).eq("campanha_creator_id", creator.campanha_creator_id);
+    if (updateError) { setError("Não foi possível salvar as métricas do creator. Execute a migration 11 antes de usar este recurso."); return; }
+    setCreators((current) => current.map((item) => item.campanha_creator_id === creator.campanha_creator_id ? { ...item, ...values } : item));
+    setEditingCreatorId(null);
   };
 
   const updateCampaign = async (event: FormEvent) => {
@@ -116,8 +134,9 @@ export default function CampanhaDetailPage() {
     <div style={header}><div><div style={eyebrow}>Detalhe da campanha</div><h1 style={title}>{campaign.nome}</h1><p style={subtitle}>{campaign.descricao || "Acompanhe creators, entregáveis e resultados desta campanha."}</p><p style={period}>{date(campaign.data_inicio)} — {date(campaign.data_fim)}</p></div><div style={headerActions}><span style={statusStyle(campaign.status)}>{statusLabels[campaign.status] || campaign.status}</span><button type="button" style={secondaryButton} onClick={() => setEditing((value) => !value)}>{editing ? "Fechar edição" : "Editar campanha"}</button></div></div>
     {editing && <form onSubmit={updateCampaign} style={editForm}><input required value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Nome da campanha" style={input} /><textarea value={editDescription} onChange={(event) => setEditDescription(event.target.value)} placeholder="Descrição" style={{ ...input, minHeight: "58px", resize: "vertical" as const }} /><div style={editFields}><select value={editStatus} onChange={(event) => setEditStatus(event.target.value)} style={input}>{["planejada", "ativa", "finalizada", "cancelada"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select><input type="date" value={editStart} onChange={(event) => setEditStart(event.target.value)} style={input} /><input type="date" value={editEnd} onChange={(event) => setEditEnd(event.target.value)} style={input} /><input type="number" min="0" value={editBudget} onChange={(event) => setEditBudget(event.target.value)} placeholder="Orçamento" style={input} /><input type="number" min="0" value={editRevenue} onChange={(event) => setEditRevenue(event.target.value)} placeholder="Receita" style={input} /><button disabled={savingCampaign} style={primaryButton}>{savingCampaign ? "Salvando..." : "Salvar alterações"}</button></div></form>}
     <div style={summaryGrid}><Metric label="Creators" value={creators.length} /><Metric label="Entregáveis" value={`${completed}/${deliverables.length}`} /><Metric label="ROI" value={roi === "-" ? roi : `${roi}x`} /><Metric label="Receita" value={money(campaign.receita)} /></div>
+    <div style={summaryGrid}><Metric label="Receita atribuída" value={money(creatorRevenue)} /><Metric label="Custo dos creators" value={money(creatorCost)} /><Metric label="ROI dos creators" value={creatorRoi} /><Metric label="Conversões" value={creators.reduce((sum, creator) => sum + Number(creator.conversoes || 0), 0)} /></div>
     <div style={grid}>
-      <div style={card}><div style={sectionHeader}><div style={sectionTitle}>Creators da campanha</div>{availableCreators.length > 0 && <select aria-label="Adicionar creator" defaultValue="" onChange={(event) => { void addCreator(event.target.value); event.target.value = ""; }} style={statusSelect}><option value="">+ Adicionar creator</option>{availableCreators.map((creator) => <option key={creator.creator_id} value={creator.creator_id}>{creator.nome}</option>)}</select>}</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"}</small></div><select aria-label={`Status de ${creator.nome}`} value={creator.status} onChange={(event) => void updateCreatorStatus(creator, event.target.value)} style={statusSelect}>{["convidado", "aprovado", "reprovado", "concluido"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select></div>)}</div>}</div>
+      <div style={card}><div style={sectionHeader}><div style={sectionTitle}>Creators da campanha</div>{availableCreators.length > 0 && <select aria-label="Adicionar creator" defaultValue="" onChange={(event) => { void addCreator(event.target.value); event.target.value = ""; }} style={statusSelect}><option value="">+ Adicionar creator</option>{availableCreators.map((creator) => <option key={creator.creator_id} value={creator.creator_id}>{creator.nome}</option>)}</select>}</div>{creators.length === 0 ? <div style={muted}>Nenhum creator vinculado.</div> : <div style={list}>{creators.map((creator) => <div key={creator.campanha_creator_id} style={creatorBlock}><div style={row}><div><strong>{creator.nome}</strong><small style={small}>@{creator.instagram || "-"} · Receita: {money(creator.receita)} · Custo: {money(creator.custo)} · Conversões: {creator.conversoes || 0}</small></div><div style={creatorActions}><select aria-label={`Status de ${creator.nome}`} value={creator.status} onChange={(event) => void updateCreatorStatus(creator, event.target.value)} style={statusSelect}>{["convidado", "aprovado", "reprovado", "concluido"].map((value) => <option key={value} value={value}>{statusLabels[value]}</option>)}</select><button type="button" onClick={() => startPerformanceEdit(creator)} style={editMetricButton}>Métricas</button></div></div>{editingCreatorId === creator.campanha_creator_id && <div style={performanceFormStyle}>{(["custo", "receita", "alcance", "cliques", "conversoes"] as const).map((field) => <input key={field} type="number" min="0" value={performanceForm[field]} onChange={(event) => setPerformanceForm((current) => ({ ...current, [field]: event.target.value }))} placeholder={field[0].toUpperCase() + field.slice(1)} style={performanceInput} />)}<button type="button" onClick={() => void savePerformance(creator)} style={primaryButton}>Salvar métricas</button><button type="button" onClick={() => setEditingCreatorId(null)} style={secondaryButton}>Cancelar</button></div>}</div>)}</div>}</div>
       <div style={card}><div style={sectionTitle}>Financeiro</div><div style={info}><InfoRow label="Orçamento" value={money(campaign.orcamento)} /><InfoRow label="Receita" value={money(campaign.receita)} /><InfoRow label="ROI" value={roi === "-" ? roi : `${roi}x`} /><InfoRow label="Status" value={statusLabels[campaign.status] || campaign.status} /></div></div>
     </div>
     <div style={{ ...card, marginTop: "14px" }}><div style={sectionHeader}><div style={sectionTitle}>Entregáveis</div><button type="button" style={secondaryButton} onClick={() => setShowForm((value) => !value)}>{showForm ? "Fechar" : "+ Adicionar"}</button></div>
@@ -151,6 +170,11 @@ const editForm = { background: "#f8fafc", border: "1px solid #e5e7eb", borderRad
 const editFields = { display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: "7px" };
 const list = { marginTop: "10px" };
 const row = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" };
+const creatorBlock = { borderBottom: "1px solid #f1f5f9" };
+const creatorActions = { display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" as const, justifyContent: "flex-end" };
+const editMetricButton = { border: "1px solid #99f6e4", borderRadius: "6px", background: "white", color: "#0f766e", padding: "5px 7px", cursor: "pointer", fontSize: "10px", fontWeight: 600 };
+const performanceFormStyle = { display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr)) auto auto", gap: "6px", padding: "8px 0 10px" };
+const performanceInput = { minWidth: 0, border: "1px solid #d1d5db", borderRadius: "6px", padding: "6px", fontSize: "10px" };
 const small = { display: "block", color: "#6b7280", fontSize: "11px", marginTop: "3px" };
 const info = { marginTop: "10px" };
 const infoRow = { display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #f1f5f9", fontSize: "12px", color: "#6b7280" };

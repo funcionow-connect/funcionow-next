@@ -41,6 +41,13 @@ create index if not exists idx_campanhas_empresa_id on public.campanhas(empresa_
 create index if not exists idx_campanha_creators_campanha_id on public.campanha_creators(campanha_id);
 create index if not exists idx_campanha_entregaveis_campanha_id on public.campanha_entregaveis(campanha_id);
 
+-- A Data API não concede mais acesso automaticamente a tabelas novas no
+-- schema public. Os grants ficam na mesma migration das tabelas; o RLS
+-- continua sendo responsável por limitar as linhas por empresa.
+grant select on public.campanhas, public.campanha_creators, public.campanha_entregaveis to anon;
+grant select, insert, update, delete on public.campanhas, public.campanha_creators, public.campanha_entregaveis to authenticated;
+grant select, insert, update, delete on public.campanhas, public.campanha_creators, public.campanha_entregaveis to service_role;
+
 alter table public.campanhas enable row level security;
 alter table public.campanha_creators enable row level security;
 alter table public.campanha_entregaveis enable row level security;
