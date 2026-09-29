@@ -49,7 +49,7 @@ export default function AcademyTrackPage() {
   };
 
   return <div>
-    <Link href="/academy" style={back}>← Voltar para Academy</Link>
+    <Link href="/academy" style={back}>← Voltar para Academia</Link>
     <h1 style={titleStyle}>{title}</h1>
     {description && <p style={subtitle}>{description}</p>}
     {error && <div style={alert}>{error}</div>}

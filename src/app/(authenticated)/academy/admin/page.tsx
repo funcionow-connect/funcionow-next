@@ -34,8 +34,8 @@ export default function AcademyAdminPage() {
   };
 
   return <div>
-    <Link href="/academy" style={back}>← Voltar para Academy</Link>
-    <h1 style={titleStyle}>Gerenciar Academy</h1><p style={subtitle}>Cadastre trilhas para sua equipe e depois adicione as aulas.</p>
+    <Link href="/academy" style={back}>← Voltar para Academia</Link>
+    <h1 style={titleStyle}>Gerenciar academia</h1><p style={subtitle}>Cadastre trilhas para sua equipe e depois adicione as aulas.</p>
     {message && <div style={notice}>{message}</div>}
     <form onSubmit={createTrack} style={form}>
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título da trilha" style={input} />

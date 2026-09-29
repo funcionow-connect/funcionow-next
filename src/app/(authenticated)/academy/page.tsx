@@ -5,51 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
 export default function AcademyPage() {
-  const trilhasDemo = [
-    {
-      titulo: "Fundamentos do Marketing de Influência",
-      nivel: "Iniciante",
-      aulas: 8,
-      duracao: "40 min",
-      categoria: "Marketing",
-      concluidas: 5,
-    },
-    {
-      titulo: "Criação de Conteúdo para Redes Sociais",
-      nivel: "Intermediário",
-      aulas: 12,
-      duracao: "45 min",
-      categoria: "Conteúdo",
-      concluidas: 8,
-    },
-    {
-      titulo: "Análise de Métricas e Performance",
-      nivel: "Avançado",
-      aulas: 6,
-      duracao: "35 min",
-      categoria: "Analytics",
-      concluidas: 2,
-    },
-    {
-      titulo: "Storytelling para Marcas",
-      nivel: "Intermediário",
-      aulas: 10,
-      duracao: "50 min",
-      categoria: "Conteúdo",
-      concluidas: 0,
-    },
-    {
-      titulo: "Negociação com Creators",
-      nivel: "Avançado",
-      aulas: 5,
-      duracao: "20 min",
-      categoria: "Gestão",
-      concluidas: 5,
-    },
-  ];
-
-  const [trilhas, setTrilhas] = useState(trilhasDemo);
-  const [dataSource, setDataSource] = useState<"demo" | "supabase">("demo");
+  const [trilhas, setTrilhas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,7 +39,6 @@ export default function AcademyPage() {
           };
         });
         setTrilhas(mapped);
-        setDataSource("supabase");
       } finally {
         setLoading(false);
       }
@@ -106,12 +61,10 @@ export default function AcademyPage() {
     
       <div>
         <div style={{ marginBottom: "16px" }}>
-          <h1 style={title}>Academy</h1>
+          <h1 style={title}>Academia</h1>
           <p style={subtitle}>Trilhas de treinamento para desenvolver creators</p>
           <Link href="/academy/admin" style={adminLink}>Gerenciar conteúdo</Link>
         </div>
-
-        {dataSource === "demo" && !loading && <div style={notice}>Exibindo conteúdo demonstrativo. Execute a migration <strong>12_academy.sql</strong> no Supabase para carregar trilhas reais.</div>}
 
         <div style={summaryGrid}>
           <div style={summaryCard}><span>Trilhas disponíveis</span><strong>{trilhas.length}</strong></div>
@@ -126,7 +79,7 @@ export default function AcademyPage() {
           <span style={count}>{trilhasFiltradas.length} trilha(s)</span>
         </div>
 
-        <div
+        {!loading && !trilhasFiltradas.length ? <div style={empty}>Nenhuma trilha cadastrada. Use “Gerenciar conteúdo” para criar a primeira trilha.</div> : <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -134,7 +87,7 @@ export default function AcademyPage() {
           }}
         >
           {trilhasFiltradas.map((t) => {
-            const pct = Math.round((t.concluidas / t.aulas) * 100);
+            const pct = t.aulas ? Math.round((t.concluidas / t.aulas) * 100) : 0;
 
             return (
               <div key={t.titulo} style={card}>
@@ -231,7 +184,7 @@ export default function AcademyPage() {
             );
           })}
           {trilhasFiltradas.length === 0 && <div style={empty}>Nenhuma trilha corresponde aos filtros.</div>}
-        </div>
+        </div>}
       </div>
     
   );
