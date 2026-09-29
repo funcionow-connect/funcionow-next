@@ -55,19 +55,20 @@ type MenuGroupDefinition = {
 const fallbackMenuItems: MenuItem[] = [
   { label: "Dashboard", href: "/dashboard", match: "/dashboard", ordem: 1 },
   { label: "Creators", href: "/creators", match: "/creators", ordem: 2 },
-  { label: "Avaliações", href: "/avaliacoes", match: "/avaliacoes", ordem: 3 },
-  { label: "Campanhas", href: "/campanhas", match: "/campanhas", ordem: 4 },
-  { label: "Academy", href: "/academy", match: "/academy", ordem: 5 },
-  { label: "Rewards", href: "/rewards", match: "/rewards", ordem: 6 },
-  { label: "Community", href: "/community", match: "/community", ordem: 7 },
-  { label: "Operação", href: "/operacao", match: "/operacao", ordem: 8 },
-  { label: "IA Insights", href: "/insights", match: "/insights", ordem: 9 },
-  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 10 },
+  { label: "Speakers e rede", href: "/speakers", match: "/speakers", ordem: 3 },
+  { label: "Avaliações", href: "/avaliacoes", match: "/avaliacoes", ordem: 4 },
+  { label: "Campanhas", href: "/campanhas", match: "/campanhas", ordem: 5 },
+  { label: "Academy", href: "/academy", match: "/academy", ordem: 6 },
+  { label: "Rewards", href: "/rewards", match: "/rewards", ordem: 7 },
+  { label: "Community", href: "/community", match: "/community", ordem: 8 },
+  { label: "Operação", href: "/operacao", match: "/operacao", ordem: 9 },
+  { label: "IA Insights", href: "/insights", match: "/insights", ordem: 10 },
+  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 11 },
   {
     label: "Configurações",
     href: "/configuracoes",
     match: "/configuracoes",
-    ordem: 11,
+    ordem: 12,
   },
   { label: "Meu Perfil", href: "/perfil", match: "/perfil", ordem: 99 },
 ];
@@ -448,7 +449,7 @@ const menuGroupDefinitions: MenuGroupDefinition[] = [
   {
     label: "Community First",
     ordem: 3,
-    hrefs: ["/creators", "/avaliacoes", "/community"],
+    hrefs: ["/creators", "/speakers", "/avaliacoes", "/community"],
   },
   {
     label: "Crescimento",
@@ -513,6 +514,7 @@ const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
       [
         "/dashboard",
         "/creators",
+        "/speakers",
         "/avaliacoes",
         "/campanhas",
         "/operacao",
@@ -523,7 +525,7 @@ const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
 
   if (perfil === "terceirizado") {
     return fallbackMenuItems.filter((item) =>
-      ["/dashboard", "/creators", "/avaliacoes", "/operacao", "/perfil"].includes(
+      ["/dashboard", "/creators", "/speakers", "/avaliacoes", "/operacao", "/perfil"].includes(
         item.href,
       ),
     );

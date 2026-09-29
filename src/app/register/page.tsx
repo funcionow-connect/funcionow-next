@@ -58,7 +58,7 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        alert(error.message);
+        alert(error.message === "Failed to fetch" ? "Não foi possível conectar ao Supabase. Verifique se o projeto está ativo e tente novamente." : error.message);
         return;
       }
 
@@ -70,7 +70,7 @@ window.location.href = "/login";
 
     } catch (err) {
       console.error("Erro inesperado ao criar conta:", err);
-      alert("Erro de conexão ao criar conta.");
+      alert(err instanceof TypeError && err.message === "Failed to fetch" ? "Não foi possível conectar ao Supabase. Verifique se o projeto está ativo e tente novamente." : "Erro de conexão ao criar conta.");
     } finally {
       setLoading(false);
     }
@@ -78,6 +78,7 @@ window.location.href = "/login";
 
   return (
     <main
+      className="login-shell"
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
@@ -86,6 +87,7 @@ window.location.href = "/login";
       }}
     >
       <section
+        className="login-form-panel"
         style={{
           background: "linear-gradient(135deg, #ffffff 0%, #fbfbfd 70%, #f3efff 100%)",
           display: "flex",
@@ -254,6 +256,7 @@ window.location.href = "/login";
       </section>
 
       <section
+        className="login-promo-panel"
         style={{
           background:
             "linear-gradient(135deg, #29272d 0%, #393344 55%, #7654c7 100%)",
