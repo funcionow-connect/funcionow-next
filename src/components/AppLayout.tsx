@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioVinculo = {
   empresa_id: string;
+  empresa_ativa_id?: string | null;
   perfil: string | null;
   perfil_acesso_id: string | null;
 };
@@ -36,6 +37,8 @@ type MenuItem = {
   href: string;
   match: string;
   ordem: number;
+  locked?: boolean;
+  moduleKey?: string;
 };
 
 type MenuGroup = {
@@ -50,6 +53,14 @@ type MenuGroupDefinition = {
   ordem: number;
   hrefs: string[];
   defaultOpen?: boolean;
+};
+
+const moduleKeyForHref = (href: string) => {
+  if (["/dashboard", "/equipe", "/configuracoes", "/perfil"].some((route) => href === route || href.startsWith(`${route}/`))) return "administracao";
+  if (["/creators", "/speakers", "/avaliacoes", "/community"].some((route) => href === route || href.startsWith(`${route}/`))) return "comunidade";
+  if (href === "/operacao" || href.startsWith("/operacao/")) return "operacao";
+  if (["/campanhas", "/academy", "/rewards", "/insights"].some((route) => href === route || href.startsWith(`${route}/`))) return "crescimento";
+  return undefined;
 };
 
 const fallbackMenuItems: MenuItem[] = [
@@ -84,6 +95,10 @@ export default function AppLayout({
   const [temEmpresa, setTemEmpresa] = useState(false);
   const [perfilAcessoNome, setPerfilAcessoNome] = useState("");
   const [initials, setInitials] = useState("U");
+  const [userName, setUserName] = useState("Usuário");
+  const [companyName, setCompanyName] = useState("Empresa não identificada");
+  const [planName, setPlanName] = useState("Plano não identificado");
+
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
@@ -107,7 +122,7 @@ export default function AppLayout({
 
         const { data: usuario, error } = await supabase
           .from("usuarios")
-          .select("empresa_id, perfil, perfil_acesso_id")
+          .select("empresa_id, empresa_ativa_id, perfil, perfil_acesso_id")
           .eq("usuario_id", session.user.id)
           .maybeSingle<UsuarioVinculo>();
 
@@ -117,9 +132,9 @@ export default function AppLayout({
           .eq("usuario_id", session.user.id)
           .maybeSingle<{ nome: string }>();
 
-        setInitials(
-          getInitials(perfilUsuario?.nome || session.user.email || "U"),
-        );
+        const nomeAtual = perfilUsuario?.nome || session.user.email || "Usuário";
+        setUserName(nomeAtual);
+        setInitials(getInitials(nomeAtual));
 
         const rotaLivreParaSemEmpresa =
           pathname === "/perfil" || pathname.startsWith("/perfil/");
@@ -151,6 +166,23 @@ export default function AppLayout({
         }
 
         setTemEmpresa(true);
+
+        const empresaAtivaId = usuario.empresa_ativa_id || usuario.empresa_id;
+        const [{ data: empresaAtual }, { data: assinaturaAtual }] = await Promise.all([
+          supabase.from("empresas").select("nome").eq("empresa_id", empresaAtivaId).maybeSingle<{ nome: string }>(),
+          supabase.from("empresa_assinaturas").select("status, plano_id, planos(slug, nome)").eq("empresa_id", empresaAtivaId).maybeSingle<any>(),
+        ]);
+        setCompanyName(empresaAtual?.nome || "Empresa não identificada");
+        const plano = Array.isArray(assinaturaAtual?.planos) ? assinaturaAtual?.planos[0] : assinaturaAtual?.planos;
+        setPlanName(plano?.nome || "Plano não identificado");
+        let modulosAtivos: string[] = [];
+        if (assinaturaAtual?.plano_id) {
+          const { data: vinculos } = await supabase.from("plano_modulos").select("modulos_plataforma(chave)").eq("plano_id", assinaturaAtual.plano_id);
+          modulosAtivos = (vinculos || []).map((item: any) => {
+            const modulo = Array.isArray(item.modulos_plataforma) ? item.modulos_plataforma[0] : item.modulos_plataforma;
+            return modulo?.chave;
+          }).filter(Boolean);
+        }
 
         let itensPermitidos: MenuItem[] = [];
         let nomePerfil = "";
@@ -224,15 +256,32 @@ export default function AppLayout({
           itensPermitidos.sort((a, b) => a.ordem - b.ordem);
         }
 
-        setMenuItems(itensPermitidos);
+        const todosModulos = ["administracao", "comunidade", "operacao", "crescimento"];
+        const modulosLiberados = modulosAtivos.length ? new Set(modulosAtivos) : new Set(todosModulos);
+        const itensVisiveis = itensPermitidos
+          .map((item) => ({ ...item, moduleKey: moduleKeyForHref(item.href) }))
+          .filter((item) => !item.moduleKey || modulosLiberados.has(item.moduleKey));
+        const rotasBloqueadas = ["/operacao", "/campanhas", "/academy", "/rewards", "/insights"]
+          .map((href) => fallbackMenuItems.find((item) => item.href === href))
+          .filter((item): item is MenuItem => Boolean(item))
+          .filter((item) => !modulosLiberados.has(moduleKeyForHref(item.href) || ""))
+          .map((item) => ({ ...item, locked: true, moduleKey: moduleKeyForHref(item.href) }));
+        const menuFinal = [...itensVisiveis, ...rotasBloqueadas].filter((item, index, list) => list.findIndex((other) => other.href === item.href) === index);
+        setMenuItems(menuFinal);
         setPerfilAcessoNome(nomePerfil);
+
+        const rotaAtualModulo = moduleKeyForHref(pathname);
+        if (rotaAtualModulo && !modulosLiberados.has(rotaAtualModulo) && !pathname.startsWith("/upgrade")) {
+          window.location.href = `/upgrade?modulo=${rotaAtualModulo}`;
+          return;
+        }
 
         const rotaPerfil =
           pathname === "/perfil" || pathname.startsWith("/perfil/");
 
         const rotaPermitida =
           rotaPerfil ||
-          itensPermitidos.some((item) => {
+          itensVisiveis.some((item) => {
             // /operacao é uma página própria. Não deve liberar todas as
             // subrotas quando somente o dashboard operacional foi permitido.
             if (item.href === "/operacao") return pathname === item.href;
@@ -344,7 +393,7 @@ export default function AppLayout({
                           return (
                             <Link
                               key={item.href}
-                              href={item.href}
+                              href={item.locked ? `/upgrade?modulo=${item.moduleKey}` : item.href}
                               style={
                                 active
                                   ? navSubItemActiveStyle
@@ -358,7 +407,7 @@ export default function AppLayout({
                                     : inactiveIndicatorStyle
                                 }
                               />
-                              <span>{item.label}</span>
+                              <span>{item.label}{item.locked ? "  🔒" : ""}</span>
                             </Link>
                           );
                         })}
@@ -416,6 +465,10 @@ export default function AppLayout({
 
           <div style={topbarRight}>
             <div style={topbarSearch}>Pesquisar...</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
+              <strong style={{ fontSize: "12px", color: "#182033" }}>{userName}</strong>
+              <span style={{ fontSize: "10px", color: "#737b8c" }}>{companyName} · {planName}</span>
+            </div>
             <div style={avatar}>{initials}</div>
           </div>
         </header>
@@ -852,3 +905,5 @@ const infoValue = {
   color: "rgba(255,255,255,0.84)",
   fontSize: "12px",
 };
+
+
