@@ -180,7 +180,7 @@ export default function ReunioesPage() {
 
       setUsuarioAtual(usuario);
 
-      const [projetosResult, membrosResult, reunioesResult] = await Promise.all([
+      const [projetosResult, membrosResult, reunioesResult, participantesResult] = await Promise.all([
         supabase
           .from("projetos")
           .select("projeto_id, nome")
@@ -196,25 +196,15 @@ export default function ReunioesPage() {
 
         supabase
           .from("reunioes")
-          .select(
-            `
-            *,
-            projetos (
-              nome
-            ),
-            reuniao_participantes (
-              membro_id,
-              membros_equipe (
-                nome,
-                cargo,
-                tipo_membro
-              )
-            )
-          `
-          )
+          .select("*, projetos ( nome )")
           .eq("empresa_id", usuario.empresa_id)
           .order("data_inicio", { ascending: false, nullsFirst: false })
           .order("criado_em", { ascending: false }),
+
+        supabase
+          .from("reuniao_participantes")
+          .select("reuniao_id, membro_id")
+          .eq("empresa_id", usuario.empresa_id),
       ]);
 
       if (projetosResult.error) {
@@ -235,9 +225,27 @@ export default function ReunioesPage() {
         return;
       }
 
+      if (participantesResult.error) {
+        console.error("Erro ao carregar participantes das reuniões:", participantesResult.error);
+        alert("Não foi possível carregar os participantes das reuniões.");
+        return;
+      }
+
+      const membros = (membrosResult.data ?? []) as MembroEquipe[];
+      const participantes = (participantesResult.data ?? []) as Array<{ reuniao_id: string; membro_id: string }>;
+      const reunioesComParticipantes = ((reunioesResult.data ?? []) as Reuniao[]).map((reuniao) => ({
+        ...reuniao,
+        participantes: participantes
+          .filter((participante) => participante.reuniao_id === reuniao.reuniao_id)
+          .map((participante) => ({
+            membro_id: participante.membro_id,
+            membros_equipe: membros.find((membro) => membro.membro_id === participante.membro_id) ?? null,
+          })),
+      }));
+
       setProjetos((projetosResult.data ?? []) as Projeto[]);
-      setMembrosEquipe((membrosResult.data ?? []) as MembroEquipe[]);
-      setReunioes((reunioesResult.data ?? []) as Reuniao[]);
+      setMembrosEquipe(membros);
+      setReunioes(reunioesComParticipantes);
     } catch (error) {
       console.error("Erro inesperado ao carregar reuniões:", error);
       alert("Erro inesperado ao carregar reuniões.");
