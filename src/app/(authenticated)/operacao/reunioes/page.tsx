@@ -17,6 +17,7 @@ type Projeto = {
 
 type MembroEquipe = {
   membro_id: string;
+  usuario_id: string | null;
   nome: string;
   cargo: string | null;
   tipo_membro: string | null;
@@ -39,7 +40,8 @@ type Reuniao = {
   transcricao: string | null;
   criado_por: string | null;
   participantes?: Array<{
-    membro_id: string;
+    membro_id: string | null;
+    usuario_id: string | null;
     membros_equipe?: { nome: string; cargo: string | null; tipo_membro: string | null } | null;
   }>;
 
@@ -189,7 +191,7 @@ export default function ReunioesPage() {
 
         supabase
           .from("membros_equipe")
-          .select("membro_id, nome, cargo, tipo_membro, status")
+          .select("membro_id, usuario_id, nome, cargo, tipo_membro, status")
           .eq("empresa_id", usuario.empresa_id)
           .eq("status", "ativo")
           .order("nome", { ascending: true }),
@@ -203,7 +205,7 @@ export default function ReunioesPage() {
 
         supabase
           .from("reuniao_participantes")
-          .select("reuniao_id, membro_id")
+          .select("reuniao_id, membro_id, usuario_id")
           .eq("empresa_id", usuario.empresa_id),
       ]);
 
@@ -230,14 +232,15 @@ export default function ReunioesPage() {
       }
 
       const membros = (membrosResult.data ?? []) as MembroEquipe[];
-      const participantes = (participantesResult.data ?? []) as Array<{ reuniao_id: string; membro_id: string }>;
+      const participantes = (participantesResult.data ?? []) as Array<{ reuniao_id: string; membro_id: string | null; usuario_id: string | null }>;
       const reunioesComParticipantes = ((reunioesResult.data ?? []) as Reuniao[]).map((reuniao) => ({
         ...reuniao,
         participantes: participantes
           .filter((participante) => participante.reuniao_id === reuniao.reuniao_id)
           .map((participante) => ({
             membro_id: participante.membro_id,
-            membros_equipe: membros.find((membro) => membro.membro_id === participante.membro_id) ?? null,
+            usuario_id: participante.usuario_id,
+            membros_equipe: membros.find((membro) => membro.membro_id === participante.membro_id) ?? membros.find((membro) => membro.usuario_id === participante.usuario_id) ?? null,
           })),
       }));
 
@@ -301,14 +304,15 @@ export default function ReunioesPage() {
         return;
       }
 
-      if (reuniaoCriada?.[0]?.reuniao_id && participantesSelecionados.length > 0) {
-        const { error: participantesError } = await supabase
-          .from("reuniao_participantes")
-          .insert(participantesSelecionados.map((membroId) => ({
-            reuniao_id: reuniaoCriada[0].reuniao_id,
-            empresa_id: usuarioAtual.empresa_id,
-            membro_id: membroId,
-          })));
+      if (reuniaoCriada?.[0]?.reuniao_id) {
+        const membroDoCriador = membrosEquipe.find((membro) => membro.usuario_id === usuarioAtual.usuario_id);
+        const participantesPayload = [
+          { reuniao_id: reuniaoCriada[0].reuniao_id, empresa_id: usuarioAtual.empresa_id, membro_id: membroDoCriador?.membro_id ?? null, usuario_id: membroDoCriador ? null : usuarioAtual.usuario_id },
+          ...participantesSelecionados
+            .filter((membroId) => membroId !== membroDoCriador?.membro_id)
+            .map((membroId) => ({ reuniao_id: reuniaoCriada[0].reuniao_id, empresa_id: usuarioAtual.empresa_id, membro_id: membroId, usuario_id: null })),
+        ];
+        const { error: participantesError } = await supabase.from("reuniao_participantes").insert(participantesPayload);
         if (participantesError) {
           console.error("Erro ao salvar participantes:", participantesError);
           alert("A reunião foi criada, mas não foi possível salvar os participantes.");
@@ -350,7 +354,7 @@ export default function ReunioesPage() {
     setEditDecisoes(reuniao.decisoes ?? "");
     setEditProximosPassos(reuniao.proximos_passos ?? "");
     setEditTranscricao(reuniao.transcricao ?? "");
-    setEditParticipantes((reuniao.participantes ?? []).map((item) => item.membro_id));
+    setEditParticipantes((reuniao.participantes ?? []).map((item) => item.membro_id).filter((id): id is string => Boolean(id)));
   };
 
   const cancelarEdicao = () => {
@@ -367,10 +371,15 @@ export default function ReunioesPage() {
       if (error) { console.error("Erro ao editar reunião:", error); alert("Não foi possível salvar a reunião."); return; }
       const { error: deleteError } = await supabase.from("reuniao_participantes").delete().eq("reuniao_id", editandoReuniaoId);
       if (deleteError) { console.error("Erro ao atualizar participantes:", deleteError); alert("A reunião foi atualizada, mas não foi possível atualizar os participantes."); return; }
-      if (editParticipantes.length > 0) {
-        const { error: insertError } = await supabase.from("reuniao_participantes").insert(editParticipantes.map((membroId) => ({ reuniao_id: editandoReuniaoId, empresa_id: usuarioAtual.empresa_id, membro_id: membroId })));
-        if (insertError) { console.error("Erro ao salvar participantes editados:", insertError); alert("A reunião foi atualizada, mas não foi possível salvar os participantes."); return; }
-      }
+      const membroDoCriador = membrosEquipe.find((membro) => membro.usuario_id === usuarioAtual.usuario_id);
+      const participantesEditados = [
+        { reuniao_id: editandoReuniaoId, empresa_id: usuarioAtual.empresa_id, membro_id: membroDoCriador?.membro_id ?? null, usuario_id: membroDoCriador ? null : usuarioAtual.usuario_id },
+        ...editParticipantes
+          .filter((membroId) => membroId !== membroDoCriador?.membro_id)
+          .map((membroId) => ({ reuniao_id: editandoReuniaoId, empresa_id: usuarioAtual.empresa_id, membro_id: membroId, usuario_id: null })),
+      ];
+      const { error: insertError } = await supabase.from("reuniao_participantes").insert(participantesEditados);
+      if (insertError) { console.error("Erro ao salvar participantes editados:", insertError); alert("A reunião foi atualizada, mas não foi possível salvar os participantes."); return; }
       cancelarEdicao();
       await carregarDados();
     } catch (error) {
@@ -742,6 +751,7 @@ export default function ReunioesPage() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={labelStyle}>Participantes</label>
                 <div style={participantBoxStyle}>
+                  <label style={participantOptionStyle}><input type="checkbox" checked disabled /><span><strong>{usuarioAtual?.nome || "Você"}</strong> — criador da reunião</span></label>
                   {membrosEquipe.length === 0 ? <span style={{ color: "#64748b", fontSize: "13px" }}>Nenhum membro ativo cadastrado ainda.</span> : membrosEquipe.map((membro) => <label key={membro.membro_id} style={participantOptionStyle}><input type="checkbox" checked={participantesSelecionados.includes(membro.membro_id)} onChange={(event) => setParticipantesSelecionados((lista) => event.target.checked ? [...lista, membro.membro_id] : lista.filter((id) => id !== membro.membro_id))} /><span><strong>{membro.nome}</strong>{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label>)}
                 </div>
                 <p style={helperTextStyle}>Os membros selecionados poderão consultar a pauta e os dados desta reunião.</p>
@@ -931,11 +941,11 @@ export default function ReunioesPage() {
                         <textarea value={editDecisoes} onChange={(event) => setEditDecisoes(event.target.value)} rows={3} placeholder="Decisões" style={{ ...inputStyle, resize: "vertical" }} />
                         <textarea value={editProximosPassos} onChange={(event) => setEditProximosPassos(event.target.value)} rows={3} placeholder="Próximos passos — uma tarefa por linha" style={{ ...inputStyle, resize: "vertical" }} />
                         <textarea value={editTranscricao} onChange={(event) => setEditTranscricao(event.target.value)} rows={4} placeholder="Transcrição" style={{ ...inputStyle, resize: "vertical" }} />
-                        <div><strong style={labelStyle}>Participantes</strong><div style={participantBoxStyle}>{membrosEquipe.map((membro) => <label key={membro.membro_id} style={participantOptionStyle}><input type="checkbox" checked={editParticipantes.includes(membro.membro_id)} onChange={(event) => setEditParticipantes((lista) => event.target.checked ? [...lista, membro.membro_id] : lista.filter((id) => id !== membro.membro_id))} /><span>{membro.nome}{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label>)}</div></div>
+                        <div><strong style={labelStyle}>Participantes</strong><div style={participantBoxStyle}><label style={participantOptionStyle}><input type="checkbox" checked disabled /><span><strong>{usuarioAtual?.nome || "Você"}</strong> — criador da reunião</span></label>{membrosEquipe.map((membro) => <label key={membro.membro_id} style={participantOptionStyle}><input type="checkbox" checked={editParticipantes.includes(membro.membro_id)} onChange={(event) => setEditParticipantes((lista) => event.target.checked ? [...lista, membro.membro_id] : lista.filter((id) => id !== membro.membro_id))} /><span>{membro.nome}{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label>)}</div></div>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}><button type="button" onClick={cancelarEdicao} style={secondaryButtonStyle}>Cancelar</button><button type="button" onClick={salvarEdicao} disabled={salvandoEdicao} style={primaryButtonStyle}>{salvandoEdicao ? "Salvando..." : "Salvar alterações"}</button></div>
                       </div>
                     ) : <>
-                    {reuniao.participantes && reuniao.participantes.length > 0 && <div style={{ marginTop: "14px" }}><TextBlock title="Participantes" text={reuniao.participantes.map((item) => item.membros_equipe?.nome).filter(Boolean).join(", ")} /></div>}
+                    {reuniao.participantes && reuniao.participantes.length > 0 && <div style={{ marginTop: "14px" }}><TextBlock title="Participantes" text={reuniao.participantes.map((item) => item.membros_equipe?.nome || (item.usuario_id === usuarioAtual?.usuario_id ? `${usuarioAtual?.nome || "Usuário atual"} (você)` : "Usuário")).join(", ")} /></div>}
                     {reuniao.pauta && (
                       <TextBlock title="Pauta" text={reuniao.pauta} />
                     )}
