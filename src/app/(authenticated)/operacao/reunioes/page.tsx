@@ -226,9 +226,7 @@ export default function ReunioesPage() {
       }
 
       if (participantesResult.error) {
-        console.error("Erro ao carregar participantes das reuniões:", participantesResult.error);
-        alert("Não foi possível carregar os participantes das reuniões.");
-        return;
+        console.warn("Participantes das reuniões indisponíveis temporariamente:", participantesResult.error);
       }
 
       const membros = (membrosResult.data ?? []) as MembroEquipe[];
