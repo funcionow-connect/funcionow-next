@@ -17,6 +17,7 @@ type Projeto = {
 
 type MembroEquipe = {
   membro_id: string;
+  usuario_id: string | null;
   nome: string;
   cargo: string | null;
   tipo_membro: string | null;
@@ -157,6 +158,7 @@ const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
       }
 
       setUsuarioAtual(usuario);
+      setResponsavelMembroId("__self__");
 
       const [projetosResult, membrosResult, tarefasResult] = await Promise.all([
   supabase
@@ -167,7 +169,7 @@ const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
 
   supabase
     .from("membros_equipe")
-    .select("membro_id, nome, cargo, tipo_membro, status")
+    .select("membro_id, usuario_id, nome, cargo, tipo_membro, status")
     .eq("empresa_id", usuario.empresa_id)
     .eq("status", "ativo")
     .order("nome", { ascending: true }),
@@ -244,6 +246,8 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
     try {
       setSalvando(true);
 
+      const membroSelecionado = membrosEquipe.find((membro) => membro.membro_id === responsavelMembroId);
+      const responsavelEhUsuarioAtual = responsavelMembroId === "__self__";
       const { error } = await supabase.from("tarefas").insert({
   empresa_id: usuarioAtual.empresa_id,
   projeto_id: projetoId || null,
@@ -252,8 +256,8 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
   status,
   prioridade,
   data_limite: dataLimite || null,
-  responsavel_id: usuarioAtual.usuario_id,
-  responsavel_membro_id: responsavelMembroId || null,
+  responsavel_id: responsavelEhUsuarioAtual ? usuarioAtual.usuario_id : membroSelecionado?.usuario_id || null,
+  responsavel_membro_id: responsavelEhUsuarioAtual ? null : responsavelMembroId || null,
   criado_por: usuarioAtual.usuario_id,
 });
 
@@ -266,7 +270,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
       setTitulo("");
       setDescricao("");
       setProjetoId("");
-      setResponsavelMembroId("");
+      setResponsavelMembroId("__self__");
       setStatus("a_fazer");
       setPrioridade("media");
       setDataLimite("");
@@ -452,6 +456,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
     onChange={(event) => setResponsavelMembroId(event.target.value)}
     style={inputStyle}
   >
+    <option value="__self__">Eu — {usuarioAtual?.nome || "usuário atual"}</option>
     <option value="">Sem responsável definido</option>
     {membrosEquipe.map((membro) => (
       <option key={membro.membro_id} value={membro.membro_id}>
@@ -767,8 +772,8 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
                                 <Badge text={`Projeto: ${tarefa.projetos.nome}`} />
                               )}
 
-                              {tarefa.membros_equipe?.nome && (
-  <Badge text={`Responsável: ${tarefa.membros_equipe.nome}`} />
+                              {(tarefa.membros_equipe?.nome || (tarefa.responsavel_id && tarefa.responsavel_id === usuarioAtual?.usuario_id)) && (
+  <Badge text={`Responsável: ${tarefa.membros_equipe?.nome || `${usuarioAtual?.nome || "Usuário atual"} (você)`}`} />
 )}
 
                               {tarefa.data_limite && (
