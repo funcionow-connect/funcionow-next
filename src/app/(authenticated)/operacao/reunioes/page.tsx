@@ -38,6 +38,11 @@ type Reuniao = {
   link_reuniao: string | null;
   transcricao: string | null;
   criado_por: string | null;
+  participantes?: Array<{
+    membro_id: string;
+    membros_equipe?: { nome: string; cargo: string | null; tipo_membro: string | null } | null;
+  }>;
+
   criado_em: string;
   atualizado_em: string;
   projetos?: {
@@ -93,6 +98,22 @@ export default function ReunioesPage() {
   const [decisoes, setDecisoes] = useState("");
   const [proximosPassos, setProximosPassos] = useState("");
   const [transcricao, setTranscricao] = useState("");
+  const [participantesSelecionados, setParticipantesSelecionados] = useState<string[]>([]);
+
+  const [editandoReuniaoId, setEditandoReuniaoId] = useState<string | null>(null);
+  const [editTitulo, setEditTitulo] = useState("");
+  const [editProjetoId, setEditProjetoId] = useState("");
+  const [editTipo, setEditTipo] = useState<Reuniao["tipo"]>("call");
+  const [editDataInicio, setEditDataInicio] = useState("");
+  const [editDataFim, setEditDataFim] = useState("");
+  const [editLinkReuniao, setEditLinkReuniao] = useState("");
+  const [editPauta, setEditPauta] = useState("");
+  const [editResumo, setEditResumo] = useState("");
+  const [editDecisoes, setEditDecisoes] = useState("");
+  const [editProximosPassos, setEditProximosPassos] = useState("");
+  const [editTranscricao, setEditTranscricao] = useState("");
+  const [editParticipantes, setEditParticipantes] = useState<string[]>([]);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const [reuniaoSelecionada, setReuniaoSelecionada] =
     useState<Reuniao | null>(null);
@@ -180,6 +201,14 @@ export default function ReunioesPage() {
             *,
             projetos (
               nome
+            ),
+            reuniao_participantes (
+              membro_id,
+              membros_equipe (
+                nome,
+                cargo,
+                tipo_membro
+              )
             )
           `
           )
@@ -241,26 +270,43 @@ export default function ReunioesPage() {
     try {
       setSalvando(true);
 
-      const { error } = await supabase.from("reunioes").insert({
-        empresa_id: usuarioAtual.empresa_id,
-        projeto_id: projetoId || null,
-        titulo: titulo.trim(),
-        tipo,
-        data_inicio: dataInicio || null,
-        data_fim: dataFim || null,
-        pauta: pauta.trim() || null,
-        resumo: resumo.trim() || null,
-        decisoes: decisoes.trim() || null,
-        proximos_passos: proximosPassos.trim() || null,
-        link_reuniao: linkReuniao.trim() || null,
-        transcricao: transcricao.trim() || null,
-        criado_por: usuarioAtual.usuario_id,
-      });
+      const { data: reuniaoCriada, error } = await supabase
+        .from("reunioes")
+        .insert({
+          empresa_id: usuarioAtual.empresa_id,
+          projeto_id: projetoId || null,
+          titulo: titulo.trim(),
+          tipo,
+          data_inicio: dataInicio || null,
+          data_fim: dataFim || null,
+          pauta: pauta.trim() || null,
+          resumo: resumo.trim() || null,
+          decisoes: decisoes.trim() || null,
+          proximos_passos: proximosPassos.trim() || null,
+          link_reuniao: linkReuniao.trim() || null,
+          transcricao: transcricao.trim() || null,
+          criado_por: usuarioAtual.usuario_id,
+        })
+        .select("reuniao_id");
 
       if (error) {
         console.error("Erro ao criar reunião:", error);
         alert("Não foi possível criar a reunião.");
         return;
+      }
+
+      if (reuniaoCriada?.[0]?.reuniao_id && participantesSelecionados.length > 0) {
+        const { error: participantesError } = await supabase
+          .from("reuniao_participantes")
+          .insert(participantesSelecionados.map((membroId) => ({
+            reuniao_id: reuniaoCriada[0].reuniao_id,
+            empresa_id: usuarioAtual.empresa_id,
+            membro_id: membroId,
+          })));
+        if (participantesError) {
+          console.error("Erro ao salvar participantes:", participantesError);
+          alert("A reunião foi criada, mas não foi possível salvar os participantes.");
+        }
       }
 
       setTitulo("");
@@ -274,6 +320,7 @@ export default function ReunioesPage() {
       setDecisoes("");
       setProximosPassos("");
       setTranscricao("");
+      setParticipantesSelecionados([]);
 
       await carregarDados();
     } catch (error) {
@@ -282,6 +329,48 @@ export default function ReunioesPage() {
     } finally {
       setSalvando(false);
     }
+  };
+
+  const abrirEdicao = (reuniao: Reuniao) => {
+    setEditandoReuniaoId(reuniao.reuniao_id);
+    setEditTitulo(reuniao.titulo);
+    setEditProjetoId(reuniao.projeto_id ?? "");
+    setEditTipo(reuniao.tipo);
+    setEditDataInicio(formatarValorDateTimeLocal(reuniao.data_inicio));
+    setEditDataFim(formatarValorDateTimeLocal(reuniao.data_fim));
+    setEditLinkReuniao(reuniao.link_reuniao ?? "");
+    setEditPauta(reuniao.pauta ?? "");
+    setEditResumo(reuniao.resumo ?? "");
+    setEditDecisoes(reuniao.decisoes ?? "");
+    setEditProximosPassos(reuniao.proximos_passos ?? "");
+    setEditTranscricao(reuniao.transcricao ?? "");
+    setEditParticipantes((reuniao.participantes ?? []).map((item) => item.membro_id));
+  };
+
+  const cancelarEdicao = () => {
+    setEditandoReuniaoId(null);
+    setSalvandoEdicao(false);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editandoReuniaoId || !usuarioAtual) return;
+    if (!editTitulo.trim()) { alert("Informe o título da reunião."); return; }
+    try {
+      setSalvandoEdicao(true);
+      const { error } = await supabase.from("reunioes").update({ projeto_id: editProjetoId || null, titulo: editTitulo.trim(), tipo: editTipo, data_inicio: editDataInicio || null, data_fim: editDataFim || null, link_reuniao: editLinkReuniao.trim() || null, pauta: editPauta.trim() || null, resumo: editResumo.trim() || null, decisoes: editDecisoes.trim() || null, proximos_passos: editProximosPassos.trim() || null, transcricao: editTranscricao.trim() || null }).eq("reuniao_id", editandoReuniaoId);
+      if (error) { console.error("Erro ao editar reunião:", error); alert("Não foi possível salvar a reunião."); return; }
+      const { error: deleteError } = await supabase.from("reuniao_participantes").delete().eq("reuniao_id", editandoReuniaoId);
+      if (deleteError) { console.error("Erro ao atualizar participantes:", deleteError); alert("A reunião foi atualizada, mas não foi possível atualizar os participantes."); return; }
+      if (editParticipantes.length > 0) {
+        const { error: insertError } = await supabase.from("reuniao_participantes").insert(editParticipantes.map((membroId) => ({ reuniao_id: editandoReuniaoId, empresa_id: usuarioAtual.empresa_id, membro_id: membroId })));
+        if (insertError) { console.error("Erro ao salvar participantes editados:", insertError); alert("A reunião foi atualizada, mas não foi possível salvar os participantes."); return; }
+      }
+      cancelarEdicao();
+      await carregarDados();
+    } catch (error) {
+      console.error("Erro inesperado ao editar reunião:", error);
+      alert("Erro inesperado ao editar reunião.");
+    } finally { setSalvandoEdicao(false); }
   };
 
   const abrirRevisaoTarefas = (reuniao: Reuniao) => {
@@ -645,6 +734,14 @@ export default function ReunioesPage() {
               </div>
 
               <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Participantes</label>
+                <div style={participantBoxStyle}>
+                  {membrosEquipe.length === 0 ? <span style={{ color: "#64748b", fontSize: "13px" }}>Nenhum membro ativo cadastrado ainda.</span> : membrosEquipe.map((membro) => <label key={membro.membro_id} style={participantOptionStyle}><input type="checkbox" checked={participantesSelecionados.includes(membro.membro_id)} onChange={(event) => setParticipantesSelecionados((lista) => event.target.checked ? [...lista, membro.membro_id] : lista.filter((id) => id !== membro.membro_id))} /><span><strong>{membro.nome}</strong>{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label>)}
+                </div>
+                <p style={helperTextStyle}>Os membros selecionados poderão consultar a pauta e os dados desta reunião.</p>
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
                 <button
                   onClick={criarReuniao}
                   disabled={salvando}
@@ -818,6 +915,21 @@ export default function ReunioesPage() {
                       </div>
                     </div>
 
+                    {editandoReuniaoId === reuniao.reuniao_id ? (
+                      <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "10px" }}><input value={editTitulo} onChange={(event) => setEditTitulo(event.target.value.slice(0, 120))} maxLength={120} style={inputStyle} placeholder="Título" /><select value={editProjetoId} onChange={(event) => setEditProjetoId(event.target.value)} style={inputStyle}><option value="">Sem projeto vinculado</option>{projetos.map((projeto) => <option key={projeto.projeto_id} value={projeto.projeto_id}>{projeto.nome}</option>)}</select></div>
+                        <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1fr 1fr", gap: "10px" }}><select value={editTipo} onChange={(event) => setEditTipo(event.target.value as Reuniao["tipo"])} style={inputStyle}>{tipoOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input type="datetime-local" value={editDataInicio} onChange={(event) => setEditDataInicio(event.target.value)} style={inputStyle} /><input type="datetime-local" value={editDataFim} onChange={(event) => setEditDataFim(event.target.value)} style={inputStyle} /></div>
+                        <input value={editLinkReuniao} onChange={(event) => setEditLinkReuniao(event.target.value)} placeholder="Link da reunião" style={inputStyle} />
+                        <textarea value={editPauta} onChange={(event) => setEditPauta(event.target.value)} rows={3} placeholder="Pauta" style={{ ...inputStyle, resize: "vertical" }} />
+                        <textarea value={editResumo} onChange={(event) => setEditResumo(event.target.value)} rows={3} placeholder="Resumo" style={{ ...inputStyle, resize: "vertical" }} />
+                        <textarea value={editDecisoes} onChange={(event) => setEditDecisoes(event.target.value)} rows={3} placeholder="Decisões" style={{ ...inputStyle, resize: "vertical" }} />
+                        <textarea value={editProximosPassos} onChange={(event) => setEditProximosPassos(event.target.value)} rows={3} placeholder="Próximos passos — uma tarefa por linha" style={{ ...inputStyle, resize: "vertical" }} />
+                        <textarea value={editTranscricao} onChange={(event) => setEditTranscricao(event.target.value)} rows={4} placeholder="Transcrição" style={{ ...inputStyle, resize: "vertical" }} />
+                        <div><strong style={labelStyle}>Participantes</strong><div style={participantBoxStyle}>{membrosEquipe.map((membro) => <label key={membro.membro_id} style={participantOptionStyle}><input type="checkbox" checked={editParticipantes.includes(membro.membro_id)} onChange={(event) => setEditParticipantes((lista) => event.target.checked ? [...lista, membro.membro_id] : lista.filter((id) => id !== membro.membro_id))} /><span>{membro.nome}{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label>)}</div></div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}><button type="button" onClick={cancelarEdicao} style={secondaryButtonStyle}>Cancelar</button><button type="button" onClick={salvarEdicao} disabled={salvandoEdicao} style={primaryButtonStyle}>{salvandoEdicao ? "Salvando..." : "Salvar alterações"}</button></div>
+                      </div>
+                    ) : <>
+                    {reuniao.participantes && reuniao.participantes.length > 0 && <div style={{ marginTop: "14px" }}><TextBlock title="Participantes" text={reuniao.participantes.map((item) => item.membros_equipe?.nome).filter(Boolean).join(", ")} /></div>}
                     {reuniao.pauta && (
                       <TextBlock title="Pauta" text={reuniao.pauta} />
                     )}
@@ -863,6 +975,8 @@ export default function ReunioesPage() {
                         </p>
                       </details>
                     )}
+                    <button type="button" onClick={() => abrirEdicao(reuniao)} style={{ ...secondaryButtonStyle, marginTop: "16px" }}>Editar reunião</button>
+                    </>}
                   </article>
                 ))}
               </div>
@@ -1169,12 +1283,24 @@ function formatarTipo(tipo: Reuniao["tipo"]) {
   return item?.label ?? tipo;
 }
 
+function formatarValorDateTimeLocal(data: string | null) {
+  if (!data) return "";
+  const valor = new Date(data);
+  const pad = (numero: number) => String(numero).padStart(2, "0");
+  return `${valor.getFullYear()}-${pad(valor.getMonth() + 1)}-${pad(valor.getDate())}T${pad(valor.getHours())}:${pad(valor.getMinutes())}`;
+}
+
 function formatarDataHora(data: string) {
   return new Date(data).toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   });
 }
+
+const participantBoxStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px", border: "1px solid #d1d5db", borderRadius: "10px", padding: "10px", background: "#f8fafc" };
+const participantOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "8px", padding: "7px 8px", borderRadius: "8px", color: "#334155", fontSize: "13px", background: "white" };
+const helperTextStyle: React.CSSProperties = { margin: "6px 0 0", color: "#64748b", fontSize: "12px" };
+const primaryButtonStyle: React.CSSProperties = { border: "none", borderRadius: "10px", background: "linear-gradient(to right, #0f766e, #14b8a6)", color: "white", padding: "9px 13px", fontSize: "13px", fontWeight: 800, cursor: "pointer" };
 
 const eyebrowStyle: React.CSSProperties = {
   margin: "0 0 8px",
