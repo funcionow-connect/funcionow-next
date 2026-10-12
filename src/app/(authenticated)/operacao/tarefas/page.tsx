@@ -30,6 +30,7 @@ type Tarefa = {
   projeto_id: string | null;
   titulo: string;
   descricao: string | null;
+  observacoes: string | null;
   status:
     | "a_fazer"
     | "em_andamento"
@@ -86,11 +87,23 @@ const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
 
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [observacoes, setObservacoes] = useState("");
   const [projetoId, setProjetoId] = useState("");
   const [responsavelMembroId, setResponsavelMembroId] = useState("");
   const [status, setStatus] = useState<Tarefa["status"]>("a_fazer");
   const [prioridade, setPrioridade] = useState<Tarefa["prioridade"]>("media");
   const [dataLimite, setDataLimite] = useState("");
+
+  const [editandoTarefaId, setEditandoTarefaId] = useState<string | null>(null);
+  const [editTitulo, setEditTitulo] = useState("");
+  const [editDescricao, setEditDescricao] = useState("");
+  const [editObservacoes, setEditObservacoes] = useState("");
+  const [editProjetoId, setEditProjetoId] = useState("");
+  const [editResponsavelMembroId, setEditResponsavelMembroId] = useState("");
+  const [editStatus, setEditStatus] = useState<Tarefa["status"]>("a_fazer");
+  const [editPrioridade, setEditPrioridade] = useState<Tarefa["prioridade"]>("media");
+  const [editDataLimite, setEditDataLimite] = useState("");
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const tarefasFiltradas = useMemo(() => {
     return tarefas.filter((tarefa) => {
@@ -100,6 +113,7 @@ const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
         !textoBusca ||
         tarefa.titulo.toLowerCase().includes(textoBusca) ||
         tarefa.descricao?.toLowerCase().includes(textoBusca) ||
+        tarefa.observacoes?.toLowerCase().includes(textoBusca) ||
         tarefa.projetos?.nome?.toLowerCase().includes(textoBusca);
 
       const bateStatus =
@@ -253,6 +267,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
   projeto_id: projetoId || null,
   titulo: titulo.trim(),
   descricao: descricao.trim() || null,
+  observacoes: observacoes.trim() || null,
   status,
   prioridade,
   data_limite: dataLimite || null,
@@ -269,6 +284,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
 
       setTitulo("");
       setDescricao("");
+      setObservacoes("");
       setProjetoId("");
       setResponsavelMembroId("__self__");
       setStatus("a_fazer");
@@ -282,6 +298,51 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
     } finally {
       setSalvando(false);
     }
+  };
+
+  const abrirEdicao = (tarefa: Tarefa) => {
+    setEditandoTarefaId(tarefa.tarefa_id);
+    setEditTitulo(tarefa.titulo);
+    setEditDescricao(tarefa.descricao ?? "");
+    setEditObservacoes(tarefa.observacoes ?? "");
+    setEditProjetoId(tarefa.projeto_id ?? "");
+    setEditStatus(tarefa.status);
+    setEditPrioridade(tarefa.prioridade);
+    setEditDataLimite(tarefa.data_limite ?? "");
+    setEditResponsavelMembroId(tarefa.responsavel_membro_id ?? (tarefa.responsavel_id === usuarioAtual?.usuario_id ? "__self__" : ""));
+  };
+
+  const cancelarEdicao = () => {
+    setEditandoTarefaId(null);
+    setSalvandoEdicao(false);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editandoTarefaId || !usuarioAtual) return;
+    if (!editTitulo.trim()) { alert("Informe o título da tarefa."); return; }
+    try {
+      setSalvandoEdicao(true);
+      const membroSelecionado = membrosEquipe.find((membro) => membro.membro_id === editResponsavelMembroId);
+      const responsavelEhUsuarioAtual = editResponsavelMembroId === "__self__";
+      const { error } = await supabase.from("tarefas").update({
+        projeto_id: editProjetoId || null,
+        titulo: editTitulo.trim(),
+        descricao: editDescricao.trim() || null,
+        observacoes: editObservacoes.trim() || null,
+        status: editStatus,
+        prioridade: editPrioridade,
+        data_limite: editDataLimite || null,
+        responsavel_id: responsavelEhUsuarioAtual ? usuarioAtual.usuario_id : membroSelecionado?.usuario_id || null,
+        responsavel_membro_id: responsavelEhUsuarioAtual ? null : editResponsavelMembroId || null,
+        concluido_em: editStatus === "concluido" ? new Date().toISOString() : null,
+      }).eq("tarefa_id", editandoTarefaId);
+      if (error) { console.error("Erro ao editar tarefa:", error); alert("Não foi possível salvar a tarefa."); return; }
+      cancelarEdicao();
+      await carregarDados();
+    } catch (error) {
+      console.error("Erro inesperado ao editar tarefa:", error);
+      alert("Erro inesperado ao editar tarefa.");
+    } finally { setSalvandoEdicao(false); }
   };
 
   const atualizarStatusTarefa = async (
@@ -477,6 +538,11 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
                   rows={4}
                   style={{ ...inputStyle, resize: "vertical" }}
                 />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Observações</label>
+                <textarea value={observacoes} onChange={(event) => setObservacoes(event.target.value)} placeholder="Registre contexto, dependências, bloqueios ou qualquer atualização." rows={3} style={{ ...inputStyle, resize: "vertical" }} />
               </div>
 
               <div
@@ -741,48 +807,25 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
                               </select>
                             </div>
 
-                            {tarefa.descricao && (
-                              <p
-                                style={{
-                                  margin: "8px 0 0",
-                                  color: "#64748b",
-                                  fontSize: "13px",
-                                  lineHeight: 1.5,
-                                }}
-                              >
-                                {tarefa.descricao}
-                              </p>
+                            {editandoTarefaId === tarefa.tarefa_id ? (
+                              <div style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+                                <input value={editTitulo} onChange={(event) => setEditTitulo(event.target.value.slice(0, 120))} maxLength={120} style={inputStyle} placeholder="Título da tarefa" />
+                                <select value={editProjetoId} onChange={(event) => setEditProjetoId(event.target.value)} style={inputStyle}><option value="">Sem projeto vinculado</option>{projetos.map((projeto) => <option key={projeto.projeto_id} value={projeto.projeto_id}>{projeto.nome}</option>)}</select>
+                                <select value={editResponsavelMembroId} onChange={(event) => setEditResponsavelMembroId(event.target.value)} style={inputStyle}><option value="__self__">Eu — {usuarioAtual?.nome || "usuário atual"}</option><option value="">Sem responsável definido</option>{membrosEquipe.map((membro) => <option key={membro.membro_id} value={membro.membro_id}>{membro.nome}{membro.cargo ? ` — ${membro.cargo}` : ""}</option>)}</select>
+                                <textarea value={editDescricao} onChange={(event) => setEditDescricao(event.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="Descrição" />
+                                <textarea value={editObservacoes} onChange={(event) => setEditObservacoes(event.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} placeholder="Observações" />
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}><select value={editStatus} onChange={(event) => setEditStatus(event.target.value as Tarefa["status"])} style={inputStyle}>{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><select value={editPrioridade} onChange={(event) => setEditPrioridade(event.target.value as Tarefa["prioridade"])} style={inputStyle}>{prioridadeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+                                <input type="date" value={editDataLimite} onChange={(event) => setEditDataLimite(event.target.value)} style={inputStyle} />
+                                <div style={{ display: "flex", gap: "8px" }}><button onClick={salvarEdicao} disabled={salvandoEdicao} style={smallButtonStyle}>{salvandoEdicao ? "Salvando..." : "Salvar alterações"}</button><button onClick={cancelarEdicao} disabled={salvandoEdicao} style={secondaryButtonStyle}>Cancelar</button></div>
+                              </div>
+                            ) : (
+                              <>
+                                {tarefa.descricao && <p style={{ margin: "8px 0 0", color: "#64748b", fontSize: "13px", lineHeight: 1.5 }}>{tarefa.descricao}</p>}
+                                {tarefa.observacoes && <div style={{ marginTop: "10px", padding: "9px 10px", borderRadius: "9px", background: tarefa.status === "aguardando_terceiro" ? "#fff7ed" : "#f8fafc", border: `1px solid ${tarefa.status === "aguardando_terceiro" ? "#fed7aa" : "#e2e8f0"}`, color: "#475569", fontSize: "12px", lineHeight: 1.45 }}><strong style={{ display: "block", color: "#334155", marginBottom: "3px" }}>Observações</strong>{tarefa.observacoes}</div>}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "12px" }}><Badge text={`Prioridade: ${formatarPrioridade(tarefa.prioridade)}`} />{tarefa.projetos?.nome && <Badge text={`Projeto: ${tarefa.projetos.nome}`} />}{(tarefa.membros_equipe?.nome || (tarefa.responsavel_id && tarefa.responsavel_id === usuarioAtual?.usuario_id)) && <Badge text={`Responsável: ${tarefa.membros_equipe?.nome || `${usuarioAtual?.nome || "Usuário atual"} (você)`}`} />}{tarefa.data_limite && <Badge text={`Prazo: ${formatarData(tarefa.data_limite)}`} danger={estaAtrasada(tarefa)} />}</div>
+                                <button onClick={() => abrirEdicao(tarefa)} style={{ ...secondaryButtonStyle, marginTop: "12px", width: "100%" }}>Editar tarefa</button>
+                              </>
                             )}
-
-                            <div
-                              style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: "6px",
-                                marginTop: "12px",
-                              }}
-                            >
-                              <Badge
-                                text={`Prioridade: ${formatarPrioridade(
-                                  tarefa.prioridade
-                                )}`}
-                              />
-
-                              {tarefa.projetos?.nome && (
-                                <Badge text={`Projeto: ${tarefa.projetos.nome}`} />
-                              )}
-
-                              {(tarefa.membros_equipe?.nome || (tarefa.responsavel_id && tarefa.responsavel_id === usuarioAtual?.usuario_id)) && (
-  <Badge text={`Responsável: ${tarefa.membros_equipe?.nome || `${usuarioAtual?.nome || "Usuário atual"} (você)`}`} />
-)}
-
-                              {tarefa.data_limite && (
-                                <Badge
-                                  text={`Prazo: ${formatarData(tarefa.data_limite)}`}
-                                  danger={estaAtrasada(tarefa)}
-                                />
-                              )}
-                            </div>
                           </article>
                         ))}
                       </div>
@@ -870,6 +913,9 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
   boxSizing: "border-box",
 };
+
+const smallButtonStyle: React.CSSProperties = { border: "none", borderRadius: "8px", padding: "9px 10px", background: "#0f766e", color: "white", fontSize: "12px", fontWeight: 800, cursor: "pointer", flex: 1 };
+const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #cbd5e1", borderRadius: "8px", padding: "9px 10px", background: "white", color: "#334155", fontSize: "12px", fontWeight: 800, cursor: "pointer" };
 
 const emptyStateStyle: React.CSSProperties = {
   background: "white",
