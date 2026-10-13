@@ -85,6 +85,7 @@ export default function NotasPage() {
   const [usuariosSelecionados, setUsuariosSelecionados] = useState<string[]>([]);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [editandoNotaId, setEditandoNotaId] = useState<string | null>(null);
+  const [editorAberto, setEditorAberto] = useState(false);
 
   const notasFiltradas = useMemo(() => {
     return notas.filter((nota) => {
@@ -230,6 +231,7 @@ export default function NotasPage() {
       setVisibilidade("somente_eu");
       setUsuariosSelecionados([]);
       if (editorRef.current) editorRef.current.innerHTML = "";
+      setEditorAberto(false);
 
       await carregarDados();
     } catch (error) {
@@ -241,6 +243,7 @@ export default function NotasPage() {
   };
 
   const iniciarEdicao = (nota: Nota) => {
+    setEditorAberto(true);
     setEditandoNotaId(nota.nota_id);
     setTitulo(nota.titulo);
     setConteudo(nota.conteudo ?? "");
@@ -256,6 +259,7 @@ export default function NotasPage() {
   };
 
   const cancelarEdicaoNota = () => {
+    setEditorAberto(false);
     setEditandoNotaId(null);
     setTitulo("");
     setConteudo("");
@@ -294,6 +298,11 @@ export default function NotasPage() {
       console.error("Erro inesperado ao editar nota:", error);
       alert("Erro inesperado ao editar nota.");
     } finally { setSalvando(false); }
+  };
+
+  const iniciarNovaNotaAmpla = () => {
+    cancelarEdicaoNota();
+    setEditorAberto(true);
   };
 
   const excluirNota = async (notaId: string) => {
@@ -350,11 +359,21 @@ export default function NotasPage() {
         </header>
 
         <section style={layoutGridStyle}>
-          <aside style={formCardStyle}>
+          {editorAberto && <div style={editorBackdropStyle} onClick={cancelarEdicaoNota} aria-hidden="true" />}
+          <aside style={editorAberto ? { ...formCardStyle, ...expandedEditorStyle } : formCardStyle}>
             <div style={formHeaderStyle}>
-              <h2 style={formTitleStyle}>{editandoNotaId ? "Editar nota" : "Nova nota"}</h2>
+              <div style={expandedHeaderStyle}>
+                <div>
+                  <h2 style={formTitleStyle}>{editandoNotaId ? "Editar nota" : "Nova nota"}</h2>
+                  {editorAberto && <p style={formDescriptionStyle}>Modo de escrita ampliado para reuniões, ideias e registros detalhados.</p>}
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {!editorAberto && <button type="button" onClick={iniciarNovaNotaAmpla} style={secondaryButtonStyle}>Abrir editor amplo</button>}
+                  {editorAberto && <button type="button" onClick={cancelarEdicaoNota} style={secondaryButtonStyle}>Fechar</button>}
+                </div>
+              </div>
               <p style={formDescriptionStyle}>
-                Salve processos, ideias, scripts e registros importantes.
+                {editorAberto ? "Preencha os dados da nota e use o espaço livre abaixo para escrever." : "Salve processos, ideias, scripts e registros importantes."}
               </p>
             </div>
 
@@ -446,7 +465,7 @@ export default function NotasPage() {
                   aria-multiline="true"
                   onInput={(event) => setConteudo(event.currentTarget.innerHTML)}
                   data-placeholder="Escreva livremente: texto, ideias, decisões e observações..."
-                  style={richEditorStyle}
+                  style={editorAberto ? { ...richEditorStyle, minHeight: "clamp(360px, 58vh, 680px)" } : richEditorStyle}
                 />
                 <p style={helperTextStyle}>Use a barra para destacar ideias e organizar a nota. O conteúdo continua salvo na mesma nota.</p>
               </div>
@@ -942,6 +961,32 @@ const richEditorStyle: React.CSSProperties = {
   overflowY: "auto",
   lineHeight: 1.6,
   whiteSpace: "pre-wrap",
+};
+
+const editorBackdropStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 40,
+  background: "rgba(15, 23, 42, 0.42)",
+  backdropFilter: "blur(2px)",
+};
+
+const expandedEditorStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: "24px",
+  zIndex: 50,
+  overflowY: "auto",
+  maxHeight: "calc(100vh - 48px)",
+  width: "auto",
+  padding: "28px clamp(20px, 4vw, 64px)",
+  boxShadow: "0 24px 80px rgba(15, 23, 42, 0.28)",
+};
+
+const expandedHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  alignItems: "flex-start",
 };
 
 const emptyStateStyle: React.CSSProperties = {
