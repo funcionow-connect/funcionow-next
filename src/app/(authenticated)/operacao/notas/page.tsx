@@ -84,6 +84,7 @@ export default function NotasPage() {
   const [visibilidade, setVisibilidade] = useState<Nota["visibilidade"]>("somente_eu");
   const [usuariosSelecionados, setUsuariosSelecionados] = useState<string[]>([]);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const [editandoNotaId, setEditandoNotaId] = useState<string | null>(null);
 
   const notasFiltradas = useMemo(() => {
     return notas.filter((nota) => {
@@ -239,6 +240,62 @@ export default function NotasPage() {
     }
   };
 
+  const iniciarEdicao = (nota: Nota) => {
+    setEditandoNotaId(nota.nota_id);
+    setTitulo(nota.titulo);
+    setConteudo(nota.conteudo ?? "");
+    setTipo(nota.tipo);
+    setProjetoId(nota.projeto_id ?? "");
+    setReuniaoId(nota.reuniao_id ?? "");
+    setVisibilidade(nota.visibilidade);
+    setUsuariosSelecionados((nota.nota_permissoes ?? []).map((item) => item.usuario_id));
+    requestAnimationFrame(() => {
+      if (editorRef.current) editorRef.current.innerHTML = nota.conteudo ?? "";
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
+  const cancelarEdicaoNota = () => {
+    setEditandoNotaId(null);
+    setTitulo("");
+    setConteudo("");
+    setTipo("nota");
+    setProjetoId("");
+    setReuniaoId("");
+    setVisibilidade("somente_eu");
+    setUsuariosSelecionados([]);
+    if (editorRef.current) editorRef.current.innerHTML = "";
+  };
+
+  const salvarEdicaoNota = async () => {
+    if (!usuarioAtual || !editandoNotaId) return;
+    const conteudoTexto = editorRef.current?.innerText.trim() ?? "";
+    if (!titulo.trim()) { alert("Informe o título da nota."); return; }
+    try {
+      setSalvando(true);
+      const { error } = await supabase.from("notas").update({
+        projeto_id: projetoId || null,
+        reuniao_id: reuniaoId || null,
+        titulo: titulo.trim(),
+        conteudo: conteudo.trim() || conteudoTexto || null,
+        tipo,
+        visibilidade,
+      }).eq("nota_id", editandoNotaId);
+      if (error) { console.error("Erro ao editar nota:", error); alert("Não foi possível salvar a nota."); return; }
+      const { error: limparPermissoesError } = await supabase.from("nota_permissoes").delete().eq("nota_id", editandoNotaId);
+      if (limparPermissoesError) console.error("Erro ao atualizar permissões:", limparPermissoesError);
+      if (visibilidade === "selecionados" && usuariosSelecionados.length > 0) {
+        const { error: permissaoError } = await supabase.from("nota_permissoes").insert(usuariosSelecionados.map((usuarioId) => ({ nota_id: editandoNotaId, empresa_id: usuarioAtual.empresa_id, usuario_id: usuarioId })));
+        if (permissaoError) console.error("Erro ao salvar permissões:", permissaoError);
+      }
+      cancelarEdicaoNota();
+      await carregarDados();
+    } catch (error) {
+      console.error("Erro inesperado ao editar nota:", error);
+      alert("Erro inesperado ao editar nota.");
+    } finally { setSalvando(false); }
+  };
+
   const excluirNota = async (notaId: string) => {
     const confirmar = window.confirm("Deseja excluir esta nota?");
 
@@ -295,7 +352,7 @@ export default function NotasPage() {
         <section style={layoutGridStyle}>
           <aside style={formCardStyle}>
             <div style={formHeaderStyle}>
-              <h2 style={formTitleStyle}>Nova nota</h2>
+              <h2 style={formTitleStyle}>{editandoNotaId ? "Editar nota" : "Nova nota"}</h2>
               <p style={formDescriptionStyle}>
                 Salve processos, ideias, scripts e registros importantes.
               </p>
@@ -394,8 +451,10 @@ export default function NotasPage() {
                 <p style={helperTextStyle}>Use a barra para destacar ideias e organizar a nota. O conteúdo continua salvo na mesma nota.</p>
               </div>
 
+              {editandoNotaId && <button type="button" onClick={cancelarEdicaoNota} style={secondaryButtonStyle}>Cancelar edição</button>}
               <button
-                onClick={criarNota}
+                type="button"
+                onClick={editandoNotaId ? salvarEdicaoNota : criarNota}
                 disabled={salvando}
                 style={{
                   ...submitButtonStyle,
@@ -403,7 +462,7 @@ export default function NotasPage() {
                   opacity: salvando ? 0.75 : 1,
                 }}
               >
-                {salvando ? "Salvando..." : "+ Criar nota"}
+                {salvando ? "Salvando..." : editandoNotaId ? "Salvar alterações" : "+ Criar nota"}
               </button>
             </div>
           </aside>
@@ -491,13 +550,10 @@ export default function NotasPage() {
                         <h3 style={noteTitleStyle}>{nota.titulo}</h3>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => excluirNota(nota.nota_id)}
-                        style={deleteButtonStyle}
-                      >
-                        Excluir
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button type="button" onClick={() => iniciarEdicao(nota)} style={secondaryButtonStyle}>Editar</button>
+                        <button type="button" onClick={() => excluirNota(nota.nota_id)} style={deleteButtonStyle}>Excluir</button>
+                      </div>
                     </div>
 
                     {nota.conteudo && <div style={noteContentStyle} dangerouslySetInnerHTML={{ __html: sanitizarConteudo(nota.conteudo) }} />}
@@ -817,6 +873,17 @@ const deleteButtonStyle: React.CSSProperties = {
   borderRadius: "10px",
   background: "#fff",
   color: "#dc2626",
+  padding: "8px 10px",
+  fontSize: "13px",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "10px",
+  background: "white",
+  color: "#0f766e",
   padding: "8px 10px",
   fontSize: "13px",
   fontWeight: 800,

@@ -24,6 +24,12 @@ type MembroEquipe = {
   status: string | null;
 };
 
+type NotaVinculo = {
+  nota_id: string;
+  titulo: string;
+  reuniao_id: string | null;
+};
+
 type Reuniao = {
   reuniao_id: string;
   empresa_id: string;
@@ -81,6 +87,7 @@ export default function ReunioesPage() {
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
+  const [notasDisponiveis, setNotasDisponiveis] = useState<NotaVinculo[]>([]);
   const [reunioes, setReunioes] = useState<Reuniao[]>([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -101,6 +108,7 @@ export default function ReunioesPage() {
   const [proximosPassos, setProximosPassos] = useState("");
   const [transcricao, setTranscricao] = useState("");
   const [participantesSelecionados, setParticipantesSelecionados] = useState<string[]>([]);
+  const [notaId, setNotaId] = useState("");
 
   const [editandoReuniaoId, setEditandoReuniaoId] = useState<string | null>(null);
   const [editTitulo, setEditTitulo] = useState("");
@@ -115,6 +123,7 @@ export default function ReunioesPage() {
   const [editProximosPassos, setEditProximosPassos] = useState("");
   const [editTranscricao, setEditTranscricao] = useState("");
   const [editParticipantes, setEditParticipantes] = useState<string[]>([]);
+  const [editNotaId, setEditNotaId] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const [reuniaoSelecionada, setReuniaoSelecionada] =
@@ -182,7 +191,7 @@ export default function ReunioesPage() {
 
       setUsuarioAtual(usuario);
 
-      const [projetosResult, membrosResult, reunioesResult, participantesResult] = await Promise.all([
+      const [projetosResult, membrosResult, reunioesResult, participantesResult, notasResult] = await Promise.all([
         supabase
           .from("projetos")
           .select("projeto_id, nome")
@@ -207,6 +216,12 @@ export default function ReunioesPage() {
           .from("reuniao_participantes")
           .select("reuniao_id, membro_id, usuario_id")
           .eq("empresa_id", usuario.empresa_id),
+
+        supabase
+          .from("notas")
+          .select("nota_id, titulo, reuniao_id")
+          .eq("empresa_id", usuario.empresa_id)
+          .order("criado_em", { ascending: false }),
       ]);
 
       if (projetosResult.error) {
@@ -231,6 +246,10 @@ export default function ReunioesPage() {
         console.warn("Participantes das reuniões indisponíveis temporariamente:", participantesResult.error);
       }
 
+      if (notasResult.error) {
+        console.warn("Notas para vínculo indisponíveis temporariamente:", notasResult.error);
+      }
+
       const membros = (membrosResult.data ?? []) as MembroEquipe[];
       const participantes = (participantesResult.data ?? []) as Array<{ reuniao_id: string; membro_id: string | null; usuario_id: string | null }>;
       const reunioesComParticipantes = ((reunioesResult.data ?? []) as Reuniao[]).map((reuniao) => ({
@@ -246,6 +265,7 @@ export default function ReunioesPage() {
 
       setProjetos((projetosResult.data ?? []) as Projeto[]);
       setMembrosEquipe(membros);
+      setNotasDisponiveis((notasResult.data ?? []) as NotaVinculo[]);
       setReunioes(reunioesComParticipantes);
     } catch (error) {
       console.error("Erro inesperado ao carregar reuniões:", error);
@@ -305,6 +325,10 @@ export default function ReunioesPage() {
       }
 
       if (reuniaoCriada?.[0]?.reuniao_id) {
+        if (notaId) {
+          const { error: notaError } = await supabase.from("notas").update({ reuniao_id: reuniaoCriada[0].reuniao_id }).eq("nota_id", notaId);
+          if (notaError) console.error("Erro ao vincular nota:", notaError);
+        }
         const membroDoCriador = membrosEquipe.find((membro) => membro.usuario_id === usuarioAtual.usuario_id);
         const participantesPayload = [
           { reuniao_id: reuniaoCriada[0].reuniao_id, empresa_id: usuarioAtual.empresa_id, membro_id: membroDoCriador?.membro_id ?? null, usuario_id: membroDoCriador ? null : usuarioAtual.usuario_id },
@@ -331,6 +355,7 @@ export default function ReunioesPage() {
       setProximosPassos("");
       setTranscricao("");
       setParticipantesSelecionados([]);
+      setNotaId("");
 
       await carregarDados();
     } catch (error) {
@@ -354,6 +379,7 @@ export default function ReunioesPage() {
     setEditDecisoes(reuniao.decisoes ?? "");
     setEditProximosPassos(reuniao.proximos_passos ?? "");
     setEditTranscricao(reuniao.transcricao ?? "");
+    setEditNotaId(notasDisponiveis.find((nota) => nota.reuniao_id === reuniao.reuniao_id)?.nota_id ?? "");
     setEditParticipantes((reuniao.participantes ?? []).map((item) => item.membro_id).filter((id): id is string => Boolean(id)));
   };
 
@@ -369,6 +395,12 @@ export default function ReunioesPage() {
       setSalvandoEdicao(true);
       const { error } = await supabase.from("reunioes").update({ projeto_id: editProjetoId || null, titulo: editTitulo.trim(), tipo: editTipo, data_inicio: editDataInicio || null, data_fim: editDataFim || null, link_reuniao: editLinkReuniao.trim() || null, pauta: editPauta.trim() || null, resumo: editResumo.trim() || null, decisoes: editDecisoes.trim() || null, proximos_passos: editProximosPassos.trim() || null, transcricao: editTranscricao.trim() || null }).eq("reuniao_id", editandoReuniaoId);
       if (error) { console.error("Erro ao editar reunião:", error); alert("Não foi possível salvar a reunião."); return; }
+      const notaAnterior = notasDisponiveis.find((nota) => nota.reuniao_id === editandoReuniaoId);
+      if (notaAnterior && notaAnterior.nota_id !== editNotaId) await supabase.from("notas").update({ reuniao_id: null }).eq("nota_id", notaAnterior.nota_id);
+      if (editNotaId) {
+        const { error: notaError } = await supabase.from("notas").update({ reuniao_id: editandoReuniaoId }).eq("nota_id", editNotaId);
+        if (notaError) console.error("Erro ao atualizar vínculo da nota:", notaError);
+      }
       const { error: deleteError } = await supabase.from("reuniao_participantes").delete().eq("reuniao_id", editandoReuniaoId);
       if (deleteError) { console.error("Erro ao atualizar participantes:", deleteError); alert("A reunião foi atualizada, mas não foi possível atualizar os participantes."); return; }
       const membroDoCriador = membrosEquipe.find((membro) => membro.usuario_id === usuarioAtual.usuario_id);
@@ -749,6 +781,15 @@ export default function ReunioesPage() {
               </div>
 
               <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Nota vinculada</label>
+                <select value={notaId} onChange={(event) => setNotaId(event.target.value)} style={inputStyle}>
+                  <option value="">Nenhuma nota vinculada</option>
+                  {notasDisponiveis.filter((nota) => !nota.reuniao_id || nota.reuniao_id === "").map((nota) => <option key={nota.nota_id} value={nota.nota_id}>{nota.titulo}</option>)}
+                </select>
+                <p style={helperTextStyle}>A nota ficará disponível junto desta reunião e poderá ser editada em Notas.</p>
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
                 <label style={labelStyle}>Participantes</label>
                 <div style={participantBoxStyle}>
                   <label style={participantOptionStyle}><input type="checkbox" checked disabled /><span><strong>{usuarioAtual?.nome || "Você"}</strong> — criador da reunião</span></label>
@@ -936,6 +977,7 @@ export default function ReunioesPage() {
                         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "10px" }}><input value={editTitulo} onChange={(event) => setEditTitulo(event.target.value.slice(0, 120))} maxLength={120} style={inputStyle} placeholder="Título" /><select value={editProjetoId} onChange={(event) => setEditProjetoId(event.target.value)} style={inputStyle}><option value="">Sem projeto vinculado</option>{projetos.map((projeto) => <option key={projeto.projeto_id} value={projeto.projeto_id}>{projeto.nome}</option>)}</select></div>
                         <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1fr 1fr", gap: "10px" }}><select value={editTipo} onChange={(event) => setEditTipo(event.target.value as Reuniao["tipo"])} style={inputStyle}>{tipoOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><input type="datetime-local" value={editDataInicio} onChange={(event) => setEditDataInicio(event.target.value)} style={inputStyle} /><input type="datetime-local" value={editDataFim} onChange={(event) => setEditDataFim(event.target.value)} style={inputStyle} /></div>
                         <input value={editLinkReuniao} onChange={(event) => setEditLinkReuniao(event.target.value)} placeholder="Link da reunião" style={inputStyle} />
+                        <div><label style={labelStyle}>Nota vinculada</label><select value={editNotaId} onChange={(event) => setEditNotaId(event.target.value)} style={inputStyle}><option value="">Nenhuma nota vinculada</option>{notasDisponiveis.filter((nota) => !nota.reuniao_id || nota.reuniao_id === editandoReuniaoId).map((nota) => <option key={nota.nota_id} value={nota.nota_id}>{nota.titulo}</option>)}</select><p style={helperTextStyle}>Você pode anexar uma nota existente à ata da reunião.</p></div>
                         <textarea value={editPauta} onChange={(event) => setEditPauta(event.target.value)} rows={3} placeholder="Pauta" style={{ ...inputStyle, resize: "vertical" }} />
                         <textarea value={editResumo} onChange={(event) => setEditResumo(event.target.value)} rows={3} placeholder="Resumo" style={{ ...inputStyle, resize: "vertical" }} />
                         <textarea value={editDecisoes} onChange={(event) => setEditDecisoes(event.target.value)} rows={3} placeholder="Decisões" style={{ ...inputStyle, resize: "vertical" }} />
