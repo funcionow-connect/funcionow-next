@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type UsuarioAtual = {
@@ -14,6 +14,16 @@ type Projeto = {
   projeto_id: string;
   nome: string;
 };
+
+type MembroEquipe = {
+  membro_id: string;
+  usuario_id: string | null;
+  nome: string;
+  cargo: string | null;
+  status: string | null;
+};
+
+type Reuniao = { reuniao_id: string; titulo: string };
 
 type Nota = {
   nota_id: string;
@@ -31,6 +41,10 @@ type Nota = {
     | "estrategia"
     | "outro";
   criado_por: string | null;
+  visibilidade: "somente_eu" | "empresa" | "gerencia" | "selecionados";
+  reuniao_id: string | null;
+  reunioes?: { titulo: string } | null;
+  nota_permissoes?: Array<{ usuario_id: string }>;
   criado_em: string;
   atualizado_em: string;
   projetos?: {
@@ -52,6 +66,8 @@ const tipoOptions = [
 export default function NotasPage() {
   const [usuarioAtual, setUsuarioAtual] = useState<UsuarioAtual | null>(null);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [membrosEquipe, setMembrosEquipe] = useState<MembroEquipe[]>([]);
+  const [reunioes, setReunioes] = useState<Reuniao[]>([]);
   const [notas, setNotas] = useState<Nota[]>([]);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -64,6 +80,10 @@ export default function NotasPage() {
   const [conteudo, setConteudo] = useState("");
   const [tipo, setTipo] = useState<Nota["tipo"]>("nota");
   const [projetoId, setProjetoId] = useState("");
+  const [reuniaoId, setReuniaoId] = useState("");
+  const [visibilidade, setVisibilidade] = useState<Nota["visibilidade"]>("somente_eu");
+  const [usuariosSelecionados, setUsuariosSelecionados] = useState<string[]>([]);
+  const editorRef = useRef<HTMLDivElement | null>(null);
 
   const notasFiltradas = useMemo(() => {
     return notas.filter((nota) => {
@@ -122,25 +142,11 @@ export default function NotasPage() {
 
       setUsuarioAtual(usuario);
 
-      const [projetosResult, notasResult] = await Promise.all([
-        supabase
-          .from("projetos")
-          .select("projeto_id, nome")
-          .eq("empresa_id", usuario.empresa_id)
-          .order("nome", { ascending: true }),
-
-        supabase
-          .from("notas")
-          .select(
-            `
-            *,
-            projetos (
-              nome
-            )
-          `,
-          )
-          .eq("empresa_id", usuario.empresa_id)
-          .order("criado_em", { ascending: false }),
+      const [projetosResult, membrosResult, reunioesResult, notasResult] = await Promise.all([
+        supabase.from("projetos").select("projeto_id, nome").eq("empresa_id", usuario.empresa_id).order("nome", { ascending: true }),
+        supabase.from("membros_equipe").select("membro_id, usuario_id, nome, cargo, status").eq("empresa_id", usuario.empresa_id).eq("status", "ativo").order("nome", { ascending: true }),
+        supabase.from("reunioes").select("reuniao_id, titulo").eq("empresa_id", usuario.empresa_id).order("data_inicio", { ascending: false }),
+        supabase.from("notas").select("*, projetos ( nome ), reunioes ( titulo ), nota_permissoes ( usuario_id )").eq("empresa_id", usuario.empresa_id).order("criado_em", { ascending: false }),
       ]);
 
       if (projetosResult.error) {
@@ -156,6 +162,8 @@ export default function NotasPage() {
       }
 
       setProjetos((projetosResult.data ?? []) as Projeto[]);
+      setMembrosEquipe((membrosResult.data ?? []) as MembroEquipe[]);
+      setReunioes((reunioesResult.data ?? []) as Reuniao[]);
       setNotas((notasResult.data ?? []) as Nota[]);
     } catch (error) {
       console.error("Erro inesperado ao carregar notas:", error);
@@ -170,6 +178,8 @@ export default function NotasPage() {
       alert("Usuário não carregado.");
       return;
     }
+
+    const conteudoTexto = editorRef.current?.innerText.trim() ?? "";
 
     if (!titulo.trim()) {
       alert("Informe o título da nota.");
@@ -189,14 +199,16 @@ export default function NotasPage() {
     try {
       setSalvando(true);
 
-      const { error } = await supabase.from("notas").insert({
+      const { data: notaCriada, error } = await supabase.from("notas").insert({
         empresa_id: usuarioAtual.empresa_id,
         projeto_id: projetoId || null,
+        reuniao_id: reuniaoId || null,
         titulo: titulo.trim(),
-        conteudo: conteudo.trim() || null,
+        conteudo: conteudo.trim() || conteudoTexto || null,
         tipo,
+        visibilidade,
         criado_por: usuarioAtual.usuario_id,
-      });
+      }).select("nota_id");
 
       if (error) {
         console.error("Erro ao criar nota:", error);
@@ -204,10 +216,19 @@ export default function NotasPage() {
         return;
       }
 
+      if (notaCriada?.[0]?.nota_id && visibilidade === "selecionados" && usuariosSelecionados.length > 0) {
+        const { error: permissaoError } = await supabase.from("nota_permissoes").insert(usuariosSelecionados.map((usuarioId) => ({ nota_id: notaCriada[0].nota_id, empresa_id: usuarioAtual.empresa_id, usuario_id: usuarioId })));
+        if (permissaoError) console.error("Erro ao salvar permissões da nota:", permissaoError);
+      }
+
       setTitulo("");
       setConteudo("");
       setTipo("nota");
       setProjetoId("");
+      setReuniaoId("");
+      setVisibilidade("somente_eu");
+      setUsuariosSelecionados([]);
+      if (editorRef.current) editorRef.current.innerHTML = "";
 
       await carregarDados();
     } catch (error) {
@@ -311,6 +332,26 @@ export default function NotasPage() {
               </div>
 
               <div>
+                <label style={labelStyle}>Reunião relacionada</label>
+                <select value={reuniaoId} onChange={(event) => setReuniaoId(event.target.value)} style={inputStyle}>
+                  <option value="">Sem reunião vinculada</option>
+                  {reunioes.map((reuniao) => <option key={reuniao.reuniao_id} value={reuniao.reuniao_id}>{reuniao.titulo}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Quem pode ver</label>
+                <select value={visibilidade} onChange={(event) => setVisibilidade(event.target.value as Nota["visibilidade"])} style={inputStyle}>
+                  <option value="somente_eu">Somente eu</option>
+                  <option value="empresa">Toda a empresa</option>
+                  <option value="gerencia">Gerência</option>
+                  <option value="selecionados">Membros selecionados</option>
+                </select>
+              </div>
+
+              {visibilidade === "selecionados" && <div><label style={labelStyle}>Membros autorizados</label><div style={permissionBoxStyle}>{membrosEquipe.length === 0 ? <span style={helperTextStyle}>Nenhum membro ativo cadastrado.</span> : membrosEquipe.map((membro) => membro.usuario_id ? <label key={membro.membro_id} style={permissionOptionStyle}><input type="checkbox" checked={usuariosSelecionados.includes(membro.usuario_id)} onChange={(event) => setUsuariosSelecionados((lista) => event.target.checked ? [...lista, membro.usuario_id as string] : lista.filter((id) => id !== membro.usuario_id))} /><span>{membro.nome}{membro.cargo ? ` — ${membro.cargo}` : ""}</span></label> : null)}</div></div>}
+
+              <div>
                 <label style={labelStyle}>Tipo</label>
                 <select
                   value={tipo}
@@ -328,14 +369,29 @@ export default function NotasPage() {
               </div>
 
               <div>
-                <label style={labelStyle}>Conteúdo</label>
-                <textarea
-                  value={conteudo}
-                  onChange={(event) => setConteudo(event.target.value)}
-                  rows={10}
-                  placeholder="Escreva aqui a informação, processo, ideia ou registro importante."
-                  style={{ ...inputStyle, resize: "vertical" }}
+                <label style={labelStyle}>Conteúdo livre</label>
+                <div style={editorToolbarStyle} aria-label="Ferramentas de formatação">
+                  <button type="button" onClick={() => formatarEditor("bold")} style={toolbarButtonStyle}><strong>B</strong></button>
+                  <button type="button" onClick={() => formatarEditor("italic")} style={toolbarButtonStyle}><em>I</em></button>
+                  <button type="button" onClick={() => formatarEditor("underline")} style={toolbarButtonStyle}><u>U</u></button>
+                  <label style={colorPickerStyle} title="Cor do texto">
+                    <span style={{ color: "#64748b", fontSize: "12px" }}>Cor</span>
+                    <input type="color" defaultValue="#0f172a" onChange={(event) => formatarEditor("foreColor", event.target.value)} />
+                  </label>
+                  {['💡', '✅', '📌', '🚧', '⭐'].map((emoji) => <button key={emoji} type="button" onClick={() => inserirEmoji(emoji)} style={toolbarButtonStyle}>{emoji}</button>)}
+                  <button type="button" onClick={() => formatarEditor("removeFormat")} style={clearButtonStyle}>Limpar formato</button>
+                </div>
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  role="textbox"
+                  aria-multiline="true"
+                  onInput={(event) => setConteudo(event.currentTarget.innerHTML)}
+                  data-placeholder="Escreva livremente: texto, ideias, decisões e observações..."
+                  style={richEditorStyle}
                 />
+                <p style={helperTextStyle}>Use a barra para destacar ideias e organizar a nota. O conteúdo continua salvo na mesma nota.</p>
               </div>
 
               <button
@@ -427,6 +483,8 @@ export default function NotasPage() {
                           {nota.projetos?.nome && (
                             <Badge text={`Projeto: ${nota.projetos.nome}`} />
                           )}
+                          <Badge text={formatarVisibilidade(nota.visibilidade)} />
+                          {nota.reunioes?.titulo && <Badge text={`Reunião: ${nota.reunioes.titulo}`} />}
                           <Badge text={formatarDataHora(nota.criado_em)} />
                         </div>
 
@@ -442,9 +500,7 @@ export default function NotasPage() {
                       </button>
                     </div>
 
-                    {nota.conteudo && (
-                      <p style={noteContentStyle}>{nota.conteudo}</p>
-                    )}
+                    {nota.conteudo && <div style={noteContentStyle} dangerouslySetInnerHTML={{ __html: sanitizarConteudo(nota.conteudo) }} />}
                   </article>
                 ))}
               </div>
@@ -520,6 +576,30 @@ function formatarDataHora(data: string) {
     dateStyle: "short",
     timeStyle: "short",
   });
+}
+
+function formatarVisibilidade(visibilidade: Nota["visibilidade"]) {
+  return { somente_eu: "Somente eu", empresa: "Toda a empresa", gerencia: "Gerência", selecionados: "Membros selecionados" }[visibilidade] ?? "Somente eu";
+}
+
+function sanitizarConteudo(conteudo: string) {
+  if (!conteudo.includes("<")) {
+    return conteudo.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char] ?? char)).replace(/\n/g, "<br />");
+  }
+
+  return conteudo
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<(?!\/?(b|strong|i|em|u|br|p|div|ul|ol|li|span)(?:\s[^>]*)?>)[^>]*>/gi, "");
+}
+
+function formatarEditor(comando: string, valor?: string) {
+  document.execCommand(comando, false, valor);
+}
+
+function inserirEmoji(emoji: string) {
+  document.execCommand("insertText", false, emoji);
 }
 
 function getBorderByTipo(tipo: Nota["tipo"]) {
@@ -741,6 +821,60 @@ const deleteButtonStyle: React.CSSProperties = {
   fontSize: "13px",
   fontWeight: 800,
   cursor: "pointer",
+};
+
+const permissionBoxStyle: React.CSSProperties = { display: "grid", gap: "6px", border: "1px solid #d1d5db", borderRadius: "10px", padding: "8px", background: "#f8fafc" };
+const permissionOptionStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "8px", padding: "7px", borderRadius: "8px", background: "white", color: "#334155", fontSize: "13px" };
+const helperTextStyle: React.CSSProperties = { color: "#64748b", fontSize: "12px" };
+
+const editorToolbarStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "6px",
+  flexWrap: "wrap",
+  border: "1px solid #d1d5db",
+  borderBottom: "none",
+  borderRadius: "12px 12px 0 0",
+  padding: "8px",
+  background: "#f8fafc",
+};
+
+const toolbarButtonStyle: React.CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  background: "white",
+  color: "#0f172a",
+  minWidth: "30px",
+  height: "30px",
+  cursor: "pointer",
+  fontSize: "14px",
+};
+
+const clearButtonStyle: React.CSSProperties = {
+  ...toolbarButtonStyle,
+  padding: "0 8px",
+  fontSize: "11px",
+  color: "#64748b",
+};
+
+const colorPickerStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  height: "30px",
+  padding: "0 5px",
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  background: "white",
+};
+
+const richEditorStyle: React.CSSProperties = {
+  ...inputStyle,
+  minHeight: "190px",
+  maxHeight: "420px",
+  overflowY: "auto",
+  lineHeight: 1.6,
+  whiteSpace: "pre-wrap",
 };
 
 const emptyStateStyle: React.CSSProperties = {
