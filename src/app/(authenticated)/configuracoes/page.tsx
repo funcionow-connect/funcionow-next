@@ -739,10 +739,6 @@ export default function ConfiguracoesPage() {
         </div>
 
         <div style={tabsRow}>
-          <a href="/empresa" style={{ ...tabButton, textDecoration: "none" }}>
-            Empresa
-          </a>
-
           <button
             type="button"
             onClick={() => setActiveTab("funil")}
