@@ -739,13 +739,9 @@ export default function ConfiguracoesPage() {
         </div>
 
         <div style={tabsRow}>
-          <button
-            type="button"
-            onClick={() => setActiveTab("empresa")}
-            style={activeTab === "empresa" ? tabButtonActive : tabButton}
-          >
+          <a href="/empresa" style={{ ...tabButton, textDecoration: "none" }}>
             Empresa
-          </button>
+          </a>
 
           <button
             type="button"

@@ -56,7 +56,7 @@ type MenuGroupDefinition = {
 };
 
 const moduleKeyForHref = (href: string) => {
-  if (["/dashboard", "/equipe", "/configuracoes", "/perfil"].some((route) => href === route || href.startsWith(`${route}/`))) return "administracao";
+  if (["/dashboard", "/empresa", "/equipe", "/configuracoes", "/perfil"].some((route) => href === route || href.startsWith(`${route}/`))) return "administracao";
   if (["/creators", "/speakers", "/avaliacoes", "/community"].some((route) => href === route || href.startsWith(`${route}/`))) return "comunidade";
   if (href === "/operacao" || href.startsWith("/operacao/")) return "operacao";
   if (["/campanhas", "/academy", "/rewards", "/insights"].some((route) => href === route || href.startsWith(`${route}/`))) return "crescimento";
@@ -65,16 +65,17 @@ const moduleKeyForHref = (href: string) => {
 
 const fallbackMenuItems: MenuItem[] = [
   { label: "Dashboard", href: "/dashboard", match: "/dashboard", ordem: 1 },
-  { label: "Creators", href: "/creators", match: "/creators", ordem: 2 },
-  { label: "Speakers e rede", href: "/speakers", match: "/speakers", ordem: 3 },
-  { label: "Avaliações", href: "/avaliacoes", match: "/avaliacoes", ordem: 4 },
-  { label: "Campanhas", href: "/campanhas", match: "/campanhas", ordem: 5 },
-  { label: "Academia", href: "/academy", match: "/academy", ordem: 6 },
-  { label: "Recompensas", href: "/rewards", match: "/rewards", ordem: 7 },
-  { label: "Comunidade", href: "/community", match: "/community", ordem: 8 },
-  { label: "Operação", href: "/operacao", match: "/operacao", ordem: 9 },
-  { label: "Análises de IA", href: "/insights", match: "/insights", ordem: 10 },
-  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 11 },
+  { label: "Empresa", href: "/empresa", match: "/empresa", ordem: 2 },
+  { label: "Creators", href: "/creators", match: "/creators", ordem: 3 },
+  { label: "Speakers e rede", href: "/speakers", match: "/speakers", ordem: 4 },
+  { label: "Avaliações", href: "/avaliacoes", match: "/avaliacoes", ordem: 5 },
+  { label: "Campanhas", href: "/campanhas", match: "/campanhas", ordem: 6 },
+  { label: "Academia", href: "/academy", match: "/academy", ordem: 7 },
+  { label: "Recompensas", href: "/rewards", match: "/rewards", ordem: 8 },
+  { label: "Comunidade", href: "/community", match: "/community", ordem: 9 },
+  { label: "Operação", href: "/operacao", match: "/operacao", ordem: 10 },
+  { label: "Análises de IA", href: "/insights", match: "/insights", ordem: 11 },
+  { label: "Equipe", href: "/equipe", match: "/equipe", ordem: 12 },
   {
     label: "Configurações",
     href: "/configuracoes",
@@ -485,7 +486,7 @@ const menuGroupDefinitions: MenuGroupDefinition[] = [
   {
     label: "Administração",
     ordem: 1,
-    hrefs: ["/dashboard", "/equipe", "/configuracoes", "/perfil"],
+    hrefs: ["/dashboard", "/empresa", "/equipe", "/configuracoes", "/perfil"],
   },
   {
     label: "Operação",
