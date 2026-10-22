@@ -90,40 +90,41 @@ export default function EmpresaPage() {
   </div></main>;
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#faf9fd", padding: "32px", color: "#18213a" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f8fafc", padding: "32px", color: "#111827" };
 const shellStyle: React.CSSProperties = { maxWidth: "1280px", margin: "0 auto" };
-const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: "24px", alignItems: "flex-start", marginBottom: "28px" };
-const eyebrowStyle: React.CSSProperties = { margin: "0 0 8px", color: "#6d5aa8", fontSize: "12px", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" };
-const titleStyle: React.CSSProperties = { margin: 0, fontSize: "42px", letterSpacing: "-0.06em", fontWeight: 900 };
-const subtitleStyle: React.CSSProperties = { margin: "8px 0 0", color: "#716b83", fontSize: "15px" };
-const statusStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: "7px", color: "#716b83", fontSize: "13px", fontWeight: 700 };
+const headerStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: "24px", alignItems: "flex-start", marginBottom: "24px" };
+const eyebrowStyle: React.CSSProperties = { margin: "0 0 8px", color: "#0f766e", fontSize: "13px", fontWeight: 700 };
+const titleStyle: React.CSSProperties = { margin: 0, fontSize: "30px", letterSpacing: "-0.03em", fontWeight: 800 };
+const subtitleStyle: React.CSSProperties = { margin: "8px 0 0", color: "#6b7280", fontSize: "14px", maxWidth: "680px" };
+const statusStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: "7px", color: "#6b7280", fontSize: "13px", fontWeight: 700 };
 const statusDotStyle: React.CSSProperties = { width: "8px", height: "8px", borderRadius: "50%", background: "#84cc16" };
-const identityCardStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "16px", background: "#f0ebfb", border: "1px solid #ddd4f3", borderRadius: "16px", padding: "18px", marginBottom: "24px" };
-const identityIconStyle: React.CSSProperties = { width: "54px", height: "54px", borderRadius: "14px", display: "grid", placeItems: "center", background: "#ddd4f3", color: "#44306f", fontSize: "23px", fontWeight: 900 };
-const identityTitleStyle: React.CSSProperties = { margin: "2px 0 4px", fontSize: "22px", fontWeight: 900 };
+const identityCardStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "16px", background: "white", border: "1px solid #e5e7eb", borderRadius: "16px", padding: "20px", marginBottom: "24px", boxShadow: "0 1px 2px rgba(15,23,42,0.04)" };
+const identityIconStyle: React.CSSProperties = { width: "54px", height: "54px", borderRadius: "12px", display: "grid", placeItems: "center", background: "#ccfbf1", color: "#0f766e", fontSize: "23px", fontWeight: 900 };
+const identityTitleStyle: React.CSSProperties = { margin: "2px 0 4px", fontSize: "22px", fontWeight: 800 };
 const introStyle: React.CSSProperties = { marginBottom: "20px" };
-const sectionTitleStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "24px", fontWeight: 900 };
-const mutedStyle: React.CSSProperties = { margin: 0, color: "#716b83", fontSize: "14px", lineHeight: 1.6 };
-const labelStyle: React.CSSProperties = { display: "block", marginBottom: "7px", color: "#544d68", fontSize: "12px", fontWeight: 800 };
+const sectionTitleStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "22px", fontWeight: 800 };
+const mutedStyle: React.CSSProperties = { margin: 0, color: "#6b7280", fontSize: "14px", lineHeight: 1.6 };
+const labelStyle: React.CSSProperties = { display: "block", marginBottom: "7px", color: "#374151", fontSize: "12px", fontWeight: 700 };
 const searchRowStyle: React.CSSProperties = { display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px" };
-const searchInputStyle: React.CSSProperties = { flex: 1, maxWidth: "560px", border: "1px solid #d8d1ec", borderRadius: "11px", padding: "13px 15px", color: "#18213a", fontSize: "14px", outline: "none" };
+const searchInputStyle: React.CSSProperties = { flex: 1, maxWidth: "560px", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "13px 15px", color: "#111827", fontSize: "14px", outline: "none", background: "white" };
 const tabsStyle: React.CSSProperties = { display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "28px" };
-const tabStyle: React.CSSProperties = { border: "1px solid #e1dcef", borderRadius: "10px", background: "transparent", color: "#716b83", padding: "10px 15px", fontSize: "13px", cursor: "pointer" };
-const activeTabStyle: React.CSSProperties = { ...tabStyle, background: "#ece7f8", color: "#5e4a95", fontWeight: 800 };
+const tabStyle: React.CSSProperties = { border: "1px solid #e5e7eb", borderRadius: "999px", background: "white", color: "#6b7280", padding: "9px 14px", fontSize: "13px", cursor: "pointer" };
+const activeTabStyle: React.CSSProperties = { ...tabStyle, background: "#ccfbf1", borderColor: "#14b8a6", color: "#0f766e", fontWeight: 700 };
 const sectionHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-end", marginBottom: "15px" };
 const cardsGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "15px" };
-const cardStyle: React.CSSProperties = { background: "white", border: "1px solid #e4e0ea", borderRadius: "15px", padding: "19px", minHeight: "105px" };
+const cardStyle: React.CSSProperties = { background: "white", border: "1px solid #e5e7eb", borderRadius: "10px", padding: "18px", minHeight: "105px", boxShadow: "0 1px 2px rgba(15,23,42,0.03)" };
 const cardTopStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "flex-start" };
-const cardLabelStyle: React.CSSProperties = { margin: 0, color: "#716b83", fontSize: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" };
-const cardContentStyle: React.CSSProperties = { margin: "12px 0 0", color: "#18213a", fontSize: "15px", lineHeight: 1.6 };
-const emptyStyle: React.CSSProperties = { display: "grid", gap: "10px", justifyItems: "start", border: "1px dashed #cfc5e7", borderRadius: "15px", padding: "32px", color: "#716b83", background: "#fcfbff" };
-const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid #d8d1ec", borderRadius: "10px", padding: "12px 13px", color: "#18213a", fontSize: "14px", outline: "none" };
-const primaryButtonStyle: React.CSSProperties = { border: "none", borderRadius: "10px", background: "#6d55a7", color: "white", padding: "11px 15px", fontSize: "13px", fontWeight: 800, cursor: "pointer" };
-const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #ddd4f3", borderRadius: "10px", background: "white", color: "#6d55a7", padding: "10px 13px", fontSize: "13px", fontWeight: 800, cursor: "pointer" };
-const iconButtonStyle: React.CSSProperties = { border: "1px solid #e1dcef", borderRadius: "8px", background: "white", color: "#6d55a7", padding: "6px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer" };
+const cardLabelStyle: React.CSSProperties = { margin: 0, color: "#6b7280", fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" };
+const cardContentStyle: React.CSSProperties = { margin: "12px 0 0", color: "#111827", fontSize: "15px", lineHeight: 1.6 };
+const emptyStyle: React.CSSProperties = { display: "grid", gap: "10px", justifyItems: "start", border: "1px dashed #d1d5db", borderRadius: "10px", padding: "32px", color: "#6b7280", background: "white" };
+const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "10px 12px", color: "#111827", fontSize: "14px", outline: "none" };
+const primaryButtonStyle: React.CSSProperties = { border: "none", borderRadius: "8px", background: "linear-gradient(to right, #0f766e, #14b8a6)", color: "white", padding: "11px 15px", fontSize: "13px", fontWeight: 800, cursor: "pointer" };
+const secondaryButtonStyle: React.CSSProperties = { border: "1px solid #d1d5db", borderRadius: "8px", background: "white", color: "#0f766e", padding: "10px 13px", fontSize: "13px", fontWeight: 800, cursor: "pointer" };
+const iconButtonStyle: React.CSSProperties = { border: "1px solid #e5e7eb", borderRadius: "8px", background: "white", color: "#0f766e", padding: "6px 8px", fontSize: "11px", fontWeight: 800, cursor: "pointer" };
 const deleteButtonStyle: React.CSSProperties = { ...iconButtonStyle, color: "#b45353", borderColor: "#f1d3d3" };
 const modalBackdropStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", padding: "24px", background: "rgba(24,33,58,0.35)" };
-const modalStyle: React.CSSProperties = { width: "min(720px, 100%)", background: "white", borderRadius: "18px", padding: "24px", boxShadow: "0 24px 80px rgba(24,33,58,0.25)" };
+const modalStyle: React.CSSProperties = { width: "min(720px, 100%)", background: "white", borderRadius: "12px", padding: "24px", boxShadow: "0 24px 80px rgba(15,23,42,0.2)" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start", marginBottom: "20px" };
+
 
 
