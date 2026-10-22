@@ -12,6 +12,8 @@ type UsuarioVinculo = {
   perfil_acesso_id: string | null;
 };
 
+type EmpresaDisponivel = { empresa_id: string; nome: string; papel: string; empresa_ativa: boolean; };
+
 type PerfilAcesso = {
   nome: string;
   slug: string;
@@ -99,6 +101,9 @@ export default function AppLayout({
   const [userName, setUserName] = useState("Usuário");
   const [companyName, setCompanyName] = useState("Empresa não identificada");
   const [planName, setPlanName] = useState("Plano não identificado");
+  const [empresaAtivaId, setEmpresaAtivaId] = useState("");
+  const [empresasDisponiveis, setEmpresasDisponiveis] = useState<EmpresaDisponivel[]>([]);
+  const [trocandoEmpresa, setTrocandoEmpresa] = useState(false);
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -168,10 +173,14 @@ export default function AppLayout({
 
         setTemEmpresa(true);
 
-        const empresaAtivaId = usuario.empresa_ativa_id || usuario.empresa_id;
+        const empresaAtivaIdAtual = usuario.empresa_ativa_id || usuario.empresa_id;
+        setEmpresaAtivaId(empresaAtivaIdAtual);
+        const { data: empresasDoUsuario, error: empresasError } = await supabase.rpc("listar_empresas_do_usuario");
+        if (empresasError) console.error("Erro ao carregar empresas do usuário:", empresasError);
+        setEmpresasDisponiveis((empresasDoUsuario || []) as EmpresaDisponivel[]);
         const [{ data: empresaAtual }, { data: assinaturaAtual }] = await Promise.all([
-          supabase.from("empresas").select("nome").eq("empresa_id", empresaAtivaId).maybeSingle<{ nome: string }>(),
-          supabase.from("empresa_assinaturas").select("status, plano_id, planos(slug, nome)").eq("empresa_id", empresaAtivaId).maybeSingle<any>(),
+          supabase.from("empresas").select("nome").eq("empresa_id", empresaAtivaIdAtual).maybeSingle<{ nome: string }>(),
+          supabase.from("empresa_assinaturas").select("status, plano_id, planos(slug, nome)").eq("empresa_id", empresaAtivaIdAtual).maybeSingle<any>(),
         ]);
         setCompanyName(empresaAtual?.nome || "Empresa não identificada");
         const plano = Array.isArray(assinaturaAtual?.planos) ? assinaturaAtual?.planos[0] : assinaturaAtual?.planos;
@@ -307,6 +316,20 @@ export default function AppLayout({
 
     checkAccess();
   }, [pathname]);
+
+  const handleSwitchCompany = async (nextEmpresaId: string) => {
+    if (!nextEmpresaId || nextEmpresaId === empresaAtivaId || trocandoEmpresa) return;
+    try {
+      setTrocandoEmpresa(true);
+      const { error } = await supabase.rpc("trocar_empresa_ativa", { p_empresa_id: nextEmpresaId });
+      if (error) throw error;
+      window.location.reload();
+    } catch (error) {
+      console.error("Erro ao trocar empresa:", error);
+      alert("Não foi possível trocar de empresa.");
+      setTrocandoEmpresa(false);
+    }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -468,7 +491,19 @@ export default function AppLayout({
             <div style={topbarSearch}>Pesquisar...</div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
               <strong style={{ fontSize: "12px", color: "#182033" }}>{userName}</strong>
-              <span style={{ fontSize: "10px", color: "#737b8c" }}>{companyName} · {planName}</span>
+              {empresasDisponiveis.length > 1 ? (
+                <select
+                  value={empresaAtivaId}
+                  onChange={(event) => void handleSwitchCompany(event.target.value)}
+                  disabled={trocandoEmpresa}
+                  aria-label="Empresa ativa"
+                  style={{ border: "none", background: "transparent", color: "#737b8c", fontSize: "10px", fontWeight: 600, cursor: "pointer", outline: "none" }}
+                >
+                  {empresasDisponiveis.map((item) => <option key={item.empresa_id} value={item.empresa_id}>{item.nome}</option>)}
+                </select>
+              ) : (
+                <span style={{ fontSize: "10px", color: "#737b8c" }}>{companyName} · {planName}</span>
+              )}
             </div>
             <div style={avatar}>{initials}</div>
           </div>

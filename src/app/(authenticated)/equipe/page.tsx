@@ -444,7 +444,7 @@ export default function EquipePage() {
     try {
       setCriandoVinculo(true);
 
-      const { error } = await supabase.rpc("criar_membro_por_codigo", {
+      const { error } = await supabase.rpc("criar_membro_multiempresa_por_codigo", {
         p_codigo_vinculo: codigoNovoVinculo.trim(),
         p_tipo_membro: novoTipoMembro,
         p_cargo: novoCargo.trim() || null,
