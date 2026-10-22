@@ -13,7 +13,33 @@ export default function HomePage() {
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [resendAvailable, setResendAvailable] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      alert("Informe seu e-mail para reenviar a confirmação.");
+      return;
+    }
+    try {
+      setResendLoading(true);
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/login` },
+      });
+      if (error) {
+        alert(error.message);
+        return;
+      }
+      alert("E-mail de confirmação reenviado. Verifique também o spam e as promoções.");
+    } catch (err) {
+      console.error("Erro ao reenviar confirmação:", err);
+      alert("Não foi possível reenviar o e-mail de confirmação.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
   const handleLogin = async () => {
     if (!email.trim()) {
       alert("Informe seu e-mail.");
@@ -34,9 +60,13 @@ export default function HomePage() {
       });
 
       if (error) {
-        alert(error.message);
+        const emailNaoConfirmado = error.code === "email_not_confirmed" || error.message.toLowerCase().includes("email not confirmed");
+        setResendAvailable(emailNaoConfirmado);
+        alert(emailNaoConfirmado ? "Confirme seu e-mail antes de entrar. Você pode reenviar a confirmação abaixo." : error.message);
         return;
       }
+
+      setResendAvailable(false);
 
       const userId = data.user?.id;
 
@@ -207,6 +237,27 @@ export default function HomePage() {
     Esqueci minha senha
   </a>
 </div>
+
+            {resendAvailable && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendLoading}
+                style={{
+                  width: "100%",
+                  border: "1px solid #ddd4f3",
+                  borderRadius: "8px",
+                  background: "#f8f5ff",
+                  padding: "10px 12px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#7654c7",
+                  cursor: resendLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {resendLoading ? "Reenviando..." : "Reenviar e-mail de confirmação"}
+              </button>
+            )}
 
             <button
               onClick={handleLogin}
