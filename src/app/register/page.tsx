@@ -58,7 +58,12 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        alert(error.message === "Failed to fetch" ? "Não foi possível conectar ao Supabase. Verifique se o projeto está ativo e tente novamente." : error.message);
+        const mensagem = error.message.toLowerCase().includes("already registered") || error.message.toLowerCase().includes("already been registered")
+          ? "Este e-mail já possui uma conta. Entre pelo login ou use a recuperação de senha."
+          : error.message === "Failed to fetch"
+            ? "Não foi possível conectar ao Supabase. Verifique se o projeto está ativo e tente novamente."
+            : error.message;
+        alert(mensagem);
         return;
       }
 
@@ -66,8 +71,8 @@ export default function RegisterPage() {
   "Conta criada com sucesso! Verifique seu e-mail e confirme sua conta antes de fazer o primeiro login."
 );
 
-window.location.href = "/login";
-
+      const convite = new URLSearchParams(window.location.search).get("convite");
+      window.location.href = convite ? `/login?convite=${encodeURIComponent(convite)}` : "/login";
     } catch (err) {
       console.error("Erro inesperado ao criar conta:", err);
       alert(err instanceof TypeError && err.message === "Failed to fetch" ? "Não foi possível conectar ao Supabase. Verifique se o projeto está ativo e tente novamente." : "Erro de conexão ao criar conta.");
@@ -488,3 +493,4 @@ const modalButton = {
   justifyContent: "center",
   gap: "12px",
 };
+

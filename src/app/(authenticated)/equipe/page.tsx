@@ -108,6 +108,7 @@ export default function EquipePage() {
     useState<PerfilVinculoBusca | null>(null);
   const [buscandoPerfil, setBuscandoPerfil] = useState(false);
   const [criandoVinculo, setCriandoVinculo] = useState(false);
+  const [gerandoConvite, setGerandoConvite] = useState(false);
 
   const [novoTipoMembro, setNovoTipoMembro] = useState("colaborador");
   const [novoPerfilAcessoId, setNovoPerfilAcessoId] = useState("");
@@ -841,6 +842,28 @@ export default function EquipePage() {
     }
   };
 
+  const handleGerarConvite = async () => {
+    const destinatarioEmail = window.prompt("E-mail do convidado (opcional):") || "";
+    try {
+      setGerandoConvite(true);
+      const { data, error } = await supabase.rpc("criar_convite_empresa", {
+        p_email: destinatarioEmail.trim() || null,
+        p_perfil_slug: "operacional",
+      });
+      if (error) throw error;
+      const convite = Array.isArray(data) ? data[0] : data;
+      if (!convite?.codigo) throw new Error("Não foi possível gerar o código do convite.");
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://funcionow-next.vercel.app";
+      const link = `${baseUrl}/convite?code=${encodeURIComponent(convite.codigo)}`;
+      await navigator.clipboard.writeText(link);
+      alert(`Convite criado e copiado:\n${link}`);
+    } catch (error) {
+      console.error("Erro ao gerar convite:", error);
+      alert(error instanceof Error ? error.message : "Não foi possível gerar o convite.");
+    } finally {
+      setGerandoConvite(false);
+    }
+  };
   const filteredMembros = useMemo(() => {
     return membros.filter((membro) => {
       const term = search.toLowerCase();
@@ -911,6 +934,10 @@ export default function EquipePage() {
             <div style={headerActions}>
               <button onClick={handleOpenVincularModal} style={primaryButton}>
                 + Vincular usuário
+              </button>
+
+              <button onClick={() => void handleGerarConvite()} disabled={gerandoConvite} style={secondaryButton}>
+                {gerandoConvite ? "Gerando..." : "Gerar convite"}
               </button>
 
               <button onClick={handleOpenCreateModal} style={secondaryButton}>
@@ -2198,4 +2225,6 @@ const modalFooter = {
   gap: "10px",
   marginTop: "16px",
 };
+
+
 

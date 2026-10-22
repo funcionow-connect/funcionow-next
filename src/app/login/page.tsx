@@ -87,6 +87,13 @@ export default function HomePage() {
         return;
       }
 
+      const convite = new URLSearchParams(window.location.search).get("convite") || sessionStorage.getItem("funcionow_convite");
+      if (convite) {
+        sessionStorage.setItem("funcionow_convite", convite);
+        window.location.href = `/convite?code=${encodeURIComponent(convite)}`;
+        return;
+      }
+
       if (usuarioEmpresa?.empresa_id) {
         window.location.href = "/dashboard";
         return;
@@ -334,3 +341,6 @@ export default function HomePage() {
     </main>
   );
 }
+
+
+
