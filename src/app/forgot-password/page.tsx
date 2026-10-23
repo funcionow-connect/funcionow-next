@@ -7,29 +7,31 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState("");
 
   const handleRecover = async () => {
     if (!email.trim()) {
-      alert("Informe seu e-mail.");
+      setMessage("Informe seu e-mail para continuar.");
       return;
     }
 
     try {
       setLoading(true);
+      setMessage("");
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://funcionow-next.vercel.app"}/reset-password`,
       });
 
       if (error) {
-        alert(error.message);
+        setMessage("Não foi possível enviar o link agora. Confira o e-mail e tente novamente.");
         return;
       }
 
       setSent(true);
     } catch (err) {
       console.error("Erro ao enviar recuperação:", err);
-      alert("Erro de conexão ao enviar recuperação de senha.");
+      setMessage("Não foi possível conectar ao serviço de recuperação. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -46,10 +48,12 @@ export default function ForgotPasswordPage() {
 
         {sent ? (
           <div style={successBox}>
-            Link enviado. Verifique sua caixa de entrada.
+            Se este e-mail estiver cadastrado, enviaremos um link de
+            recuperação. Verifique sua caixa de entrada e o spam.
           </div>
         ) : (
           <>
+            {message && <div style={errorBox}>{message}</div>}
             <input
               type="email"
               placeholder="seu@email.com"
@@ -135,6 +139,17 @@ const successBox = {
   borderRadius: "10px",
   padding: "12px",
   fontSize: "14px",
+  marginBottom: "16px",
+};
+
+const errorBox = {
+  background: "#fff5f5",
+  color: "#b42318",
+  border: "1px solid #f3c7c3",
+  borderRadius: "10px",
+  padding: "12px",
+  fontSize: "14px",
+  lineHeight: 1.5,
   marginBottom: "16px",
 };
 

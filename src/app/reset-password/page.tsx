@@ -8,34 +8,36 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [updated, setUpdated] = useState(false);
+  const [message, setMessage] = useState("");
 
   const handleUpdatePassword = async () => {
     if (password.length < 6) {
-      alert("A senha precisa ter pelo menos 6 caracteres.");
+      setMessage("A senha precisa ter pelo menos 6 caracteres.");
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("As senhas não conferem.");
+      setMessage("As senhas não conferem. Revise os dois campos.");
       return;
     }
 
     try {
       setLoading(true);
+      setMessage("");
 
       const { error } = await supabase.auth.updateUser({
         password,
       });
 
       if (error) {
-        alert(error.message);
+        setMessage("Não foi possível atualizar a senha. Solicite um novo link e tente novamente.");
         return;
       }
 
       setUpdated(true);
     } catch (err) {
       console.error("Erro ao atualizar senha:", err);
-      alert("Erro ao atualizar senha.");
+      setMessage("Não foi possível atualizar a senha agora. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -57,6 +59,7 @@ export default function ResetPasswordPage() {
           </>
         ) : (
           <>
+            {message && <div style={errorBox}>{message}</div>}
             <input
               type="password"
               placeholder="Nova senha"
@@ -150,6 +153,17 @@ const successBox = {
   borderRadius: "10px",
   padding: "12px",
   fontSize: "14px",
+  marginBottom: "16px",
+};
+
+const errorBox = {
+  background: "#fff5f5",
+  color: "#b42318",
+  border: "1px solid #f3c7c3",
+  borderRadius: "10px",
+  padding: "12px",
+  fontSize: "14px",
+  lineHeight: 1.5,
   marginBottom: "16px",
 };
 

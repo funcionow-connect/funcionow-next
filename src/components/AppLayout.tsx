@@ -122,7 +122,8 @@ export default function AppLayout({
         } = await supabase.auth.getSession();
 
         if (!session?.user) {
-          window.location.href = "/";
+          const destino = `${pathname}${window.location.search}`;
+          window.location.href = `/login?next=${encodeURIComponent(destino)}`;
           return;
         }
 

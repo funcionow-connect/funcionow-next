@@ -94,6 +94,12 @@ export default function HomePage() {
         return;
       }
 
+      const next = new URLSearchParams(window.location.search).get("next");
+      if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/login")) {
+        window.location.href = next;
+        return;
+      }
+
       if (usuarioEmpresa?.empresa_id) {
         window.location.href = "/dashboard";
         return;
