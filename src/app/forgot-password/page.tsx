@@ -8,6 +8,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
+  const [notFound, setNotFound] = useState(false);
 
   const handleRecover = async () => {
     if (!email.trim()) {
@@ -18,9 +19,24 @@ export default function ForgotPasswordPage() {
     try {
       setLoading(true);
       setMessage("");
+      setNotFound(false);
+
+      const { data: emailEncontrado, error: consultaError } = await supabase.rpc(
+        "email_tem_conta",
+        { p_email: email.trim() },
+      );
+
+      if (consultaError) {
+        throw consultaError;
+      }
+
+      if (emailEncontrado === false) {
+        setNotFound(true);
+        return;
+      }
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://funcionow-next.vercel.app"}/reset-password`,
+        redirectTo: "https://funcionow-next.vercel.app/reset-password",
       });
 
       if (error) {
@@ -48,8 +64,12 @@ export default function ForgotPasswordPage() {
 
         {sent ? (
           <div style={successBox}>
-            Se este e-mail estiver cadastrado, enviaremos um link de
-            recuperação. Verifique sua caixa de entrada e o spam.
+            Link enviado. Verifique sua caixa de entrada e o spam.
+          </div>
+        ) : notFound ? (
+          <div style={notFoundBox}>
+            Este e-mail ainda não foi encontrado como usuário cadastrado.
+            Crie uma conta antes de solicitar a recuperação de senha.
           </div>
         ) : (
           <>
@@ -146,6 +166,17 @@ const errorBox = {
   background: "#fff5f5",
   color: "#b42318",
   border: "1px solid #f3c7c3",
+  borderRadius: "10px",
+  padding: "12px",
+  fontSize: "14px",
+  lineHeight: 1.5,
+  marginBottom: "16px",
+};
+
+const notFoundBox = {
+  background: "#fff8e6",
+  color: "#8a5a00",
+  border: "1px solid #f2d38a",
   borderRadius: "10px",
   padding: "12px",
   fontSize: "14px",
