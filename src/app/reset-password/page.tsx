@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { recoverySupabase } from "@/lib/recoverySupabaseClient";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -16,6 +17,7 @@ export default function ResetPasswordPage() {
 
     const prepararSessao = async () => {
       const code = new URLSearchParams(window.location.search).get("code");
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       let exchangeError = null;
 
       if (code) {
@@ -23,7 +25,22 @@ export default function ResetPasswordPage() {
         exchangeError = result.error;
       }
 
-      const { data } = await supabase.auth.getSession();
+      // Links enviados pelo fluxo implícito chegam com os tokens no hash.
+      // O hash nunca é enviado ao servidor e permite abrir o link em outro dispositivo.
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      if (!code && accessToken && refreshToken) {
+        const result = await recoverySupabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        exchangeError = result.error;
+        if (!result.error) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+
+      const { data } = await recoverySupabase.auth.getSession();
       if (!ativo) return;
 
       if (!data.session) {
@@ -57,13 +74,13 @@ export default function ResetPasswordPage() {
       setLoading(true);
       setMessage("");
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await recoverySupabase.auth.getSession();
       if (!sessionData.session) {
         setMessage("Este link de recuperação expirou ou já foi utilizado. Solicite um novo link.");
         return;
       }
 
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await recoverySupabase.auth.updateUser({
         password,
       });
 
