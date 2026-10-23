@@ -40,7 +40,12 @@ export default function ForgotPasswordPage() {
       });
 
       if (error) {
-        setMessage("Não foi possível enviar o link agora. Confira o e-mail e tente novamente.");
+        const mensagem = error.message.toLowerCase();
+        if (mensagem.includes("rate limit") || mensagem.includes("too many requests")) {
+          setMessage("O limite de envio de e-mails foi atingido. Aguarde alguns minutos antes de solicitar um novo link.");
+        } else {
+          setMessage("Não foi possível enviar o link agora. Confira o e-mail e tente novamente.");
+        }
         return;
       }
 
@@ -192,3 +197,4 @@ const linkStyle = {
   color: "#7654c7",
   textDecoration: "none",
 };
+
