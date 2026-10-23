@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ResetPasswordPage() {
@@ -9,6 +9,38 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [updated, setUpdated] = useState(false);
   const [message, setMessage] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+
+    const prepararSessao = async () => {
+      const code = new URLSearchParams(window.location.search).get("code");
+      let exchangeError = null;
+
+      if (code) {
+        const result = await supabase.auth.exchangeCodeForSession(code);
+        exchangeError = result.error;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (!ativo) return;
+
+      if (!data.session) {
+        setMessage(
+          exchangeError
+            ? "Este link de recuperação expirou ou já foi utilizado. Solicite um novo link."
+            : "Abra esta página pelo link recebido no e-mail para criar uma nova senha.",
+        );
+      }
+      setReady(true);
+    };
+
+    void prepararSessao();
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const handleUpdatePassword = async () => {
     if (password.length < 6) {
@@ -24,6 +56,12 @@ export default function ResetPasswordPage() {
     try {
       setLoading(true);
       setMessage("");
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        setMessage("Este link de recuperação expirou ou já foi utilizado. Solicite um novo link.");
+        return;
+      }
 
       const { error } = await supabase.auth.updateUser({
         password,
@@ -78,10 +116,10 @@ export default function ResetPasswordPage() {
 
             <button
               onClick={handleUpdatePassword}
-              disabled={loading}
+              disabled={loading || !ready || Boolean(!message && !ready)}
               style={buttonStyle}
             >
-              {loading ? "Atualizando..." : "Atualizar senha"}
+              {!ready ? "Validando link..." : loading ? "Atualizando..." : "Atualizar senha"}
             </button>
           </>
         )}
@@ -180,3 +218,4 @@ const buttonLinkStyle = {
   textDecoration: "none",
   boxSizing: "border-box" as const,
 };
+
