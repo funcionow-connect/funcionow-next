@@ -843,11 +843,13 @@ export default function EquipePage() {
   };
 
   const handleGerarConvite = async () => {
-    const destinatarioEmail = window.prompt("E-mail do convidado (opcional):") || "";
+    const destinatarioEmailInformado = window.prompt("E-mail do convidado (opcional):");
+    if (destinatarioEmailInformado === null) return;
+    const destinatarioEmail = destinatarioEmailInformado.trim();
     try {
       setGerandoConvite(true);
       const { data, error } = await supabase.rpc("criar_convite_empresa", {
-        p_email: destinatarioEmail.trim() || null,
+        p_email: destinatarioEmail || null,
         p_perfil_slug: "operacional",
       });
       if (error) throw error;
