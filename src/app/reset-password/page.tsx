@@ -85,6 +85,10 @@ export default function ResetPasswordPage() {
       });
 
       if (error) {
+        if (error.message.toLowerCase().includes("same_password")) {
+          setMessage("A nova senha é igual à senha atual. Para manter a mesma senha, você não precisa alterá-la. Se quiser trocar, acesse seu perfil e escolha uma senha diferente.");
+          return;
+        }
         setMessage("Não foi possível atualizar a senha. Solicite um novo link e tente novamente.");
         return;
       }
