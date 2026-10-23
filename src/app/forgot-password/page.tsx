@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { recoverySupabase } from "@/lib/recoverySupabaseClient";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -35,7 +36,7 @@ export default function ForgotPasswordPage() {
         return;
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      const { error } = await recoverySupabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: "https://funcionow-next.vercel.app/reset-password",
       });
 
