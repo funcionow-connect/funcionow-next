@@ -24,11 +24,12 @@ type PerfilUsuario = {
 
 type VinculoUsuario = {
   empresa_id: string;
-  perfil: string;
-  status: string | null;
-  empresas: {
-    nome: string;
-  } | null;
+  nome?: string;
+  papel?: string;
+  empresa_ativa?: boolean;
+  perfil?: string;
+  status?: string | null;
+  empresas?: { nome: string } | { nome: string }[] | null;
 };
 
 type ViaCepResponse = {
@@ -63,7 +64,7 @@ export default function PerfilPage() {
   const [estado, setEstado] = useState("");
 
   const [codigoVinculo, setCodigoVinculo] = useState("");
-  const [vinculo, setVinculo] = useState<VinculoUsuario | null>(null);
+  const [vinculos, setVinculos] = useState<VinculoUsuario[]>([]);
 
   const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -169,9 +170,26 @@ export default function PerfilPage() {
 
       if (vinculoError) {
         console.error("Erro ao buscar vínculo:", vinculoError);
-        setVinculo(null);
       } else {
-        setVinculo(vinculoData || null);
+        const { data: empresasData, error: empresasError } = await supabase.rpc("listar_empresas_do_usuario");
+
+        if (!empresasError && empresasData?.length) {
+          setVinculos(empresasData as VinculoUsuario[]);
+        } else if (vinculoData?.empresa_id) {
+          const empresaLegada = Array.isArray(vinculoData.empresas)
+            ? vinculoData.empresas[0]
+            : vinculoData.empresas;
+          setVinculos([
+            {
+              empresa_id: vinculoData.empresa_id,
+              nome: empresaLegada?.nome || "Empresa não encontrada",
+              papel: vinculoData.perfil || "membro",
+              empresa_ativa: true,
+            },
+          ]);
+        } else {
+          setVinculos([]);
+        }
       }
     } catch (err) {
       console.error("Erro inesperado ao carregar perfil:", err);
@@ -367,24 +385,24 @@ export default function PerfilPage() {
               <div style={card}>
                 <div style={sectionTitle}>Vínculo com empresa</div>
 
-                {vinculo ? (
-                  <div style={vinculoBox}>
-                    <div>
-                      <div style={codigoLabel}>Empresa</div>
-                      <div style={vinculoEmpresa}>
-                        {vinculo.empresas?.nome || "Empresa não encontrada"}
+                {vinculos.length ? (
+                  <div style={vinculosList}>
+                    {vinculos.map((vinculo) => (
+                      <div key={vinculo.empresa_id} style={vinculoBox}>
+                        <div>
+                          <div style={codigoLabel}>Empresa {vinculo.empresa_ativa ? "ativa" : "associada"}</div>
+                          <div style={vinculoEmpresa}>{vinculo.nome || "Empresa não encontrada"}</div>
+                        </div>
+
+                        <div style={vinculoBadges}>
+                          <span style={perfilBadge(vinculo.papel || "membro")}>
+                            {formatPerfil(vinculo.papel || "membro")}
+                          </span>
+
+                          <span style={statusBadge("ativo")}>Ativo</span>
+                        </div>
                       </div>
-                    </div>
-
-                    <div style={vinculoBadges}>
-                      <span style={perfilBadge(vinculo.perfil)}>
-                        {formatPerfil(vinculo.perfil)}
-                      </span>
-
-                      <span style={statusBadge(vinculo.status || "ativo")}>
-                        {vinculo.status === "inativo" ? "Inativo" : "Ativo"}
-                      </span>
-                    </div>
+                    ))}
                   </div>
                 ) : (
                   <div style={semVinculoBox}>
@@ -639,6 +657,11 @@ const vinculoBox = {
   gap: "10px",
 };
 
+const vinculosList = {
+  display: "grid",
+  gap: "10px",
+};
+
 const vinculoEmpresa = {
   fontSize: "14px",
   color: "#111827",
@@ -797,3 +820,4 @@ function statusBadge(status: string) {
     fontWeight: 700,
   };
 }
+
