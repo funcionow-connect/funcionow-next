@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -132,6 +133,7 @@ export default function ProjetosPage() {
   };
 
   const criarProjeto = async () => {
+    if (!(await requirePagePermission("operacao_projetos", "pode_criar"))) return;
     if (!usuarioAtual) {
       alert("Usuário não carregado.");
       return;
@@ -183,6 +185,7 @@ export default function ProjetosPage() {
     projetoId: string,
     novoStatus: Projeto["status"]
   ) => {
+    if (!(await requirePagePermission("operacao_projetos", "pode_editar"))) return;
     try {
       const { error } = await supabase
         .from("projetos")

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 import { useRouter } from "next/navigation";
 
 
@@ -12,6 +13,7 @@ export default function NewCreatorPage() {
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
+    if (!(await requirePagePermission("creators", "pode_criar"))) return;
     setLoading(true);
 
     // pega usuário logado

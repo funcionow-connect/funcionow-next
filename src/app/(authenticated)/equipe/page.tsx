@@ -222,23 +222,25 @@ export default function EquipePage() {
       (item) => item.perfil_acesso_id === perfilAcessoId,
     );
 
+    if (perfil?.slug === "admin") return "Administrador";
+    if (perfil?.slug === "operacional") return "Operacional";
+    if (perfil?.slug === "externo") return "Externo";
+
     return perfil?.nome || "-";
   };
 
-  const setPermissoesFallback = (perfil: string | null) => {
-    const isAdmin = perfil === "admin";
-
-    setPodeCriar(isAdmin);
-    setPodeEditar(isAdmin);
-    setPodeExcluir(isAdmin);
+  const setPermissoesFallback = () => {
+    // Sem o perfil da empresa ativa, não conceder permissões pelo campo legado.
+    setPodeCriar(false);
+    setPodeEditar(false);
+    setPodeExcluir(false);
   };
 
   const loadPermissoesEquipe = async (
     perfilAcessoId: string | null,
-    perfilLegado: string | null,
   ) => {
     if (!perfilAcessoId) {
-      setPermissoesFallback(perfilLegado);
+      setPermissoesFallback();
       return;
     }
 
@@ -251,7 +253,7 @@ export default function EquipePage() {
 
     if (error) {
       console.error("Erro ao buscar permissões da equipe:", error);
-      setPermissoesFallback(perfilLegado);
+      setPermissoesFallback();
       return;
     }
 
@@ -289,7 +291,7 @@ export default function EquipePage() {
 
       setEmpresaId(usuario.empresa_id);
 
-      await loadPermissoesEquipe(usuario.perfil_acesso_id, usuario.perfil);
+      await loadPermissoesEquipe(usuario.perfil_acesso_id);
 
       const { data: perfisData, error: perfisError } = await supabase
         .from("perfis_acesso")
@@ -493,22 +495,23 @@ export default function EquipePage() {
     setPerfilAcessoAtualId("");
     setPerfilAcessoEditId("");
 
-    if (!membro.usuario_id) return;
+    if (!membro.usuario_id || !empresaId) return;
 
-    const { data, error } = await supabase
-      .from("usuarios")
-      .select("perfil_acesso_id")
-      .eq("usuario_id", membro.usuario_id)
-      .maybeSingle<{ perfil_acesso_id: string | null }>();
+    const { data, error } = await supabase.rpc(
+      "buscar_perfil_acesso_membro",
+      { p_membro_id: membro.membro_id },
+    );
 
     if (error) {
       console.error("Erro ao buscar perfil de acesso:", error);
       return;
     }
 
-    if (data?.perfil_acesso_id) {
-      setPerfilAcessoAtualId(data.perfil_acesso_id);
-      setPerfilAcessoEditId(data.perfil_acesso_id);
+    const perfil = Array.isArray(data) ? data[0] : data;
+
+    if (perfil?.perfil_acesso_id) {
+      setPerfilAcessoAtualId(perfil.perfil_acesso_id);
+      setPerfilAcessoEditId(perfil.perfil_acesso_id);
     }
   };
 
@@ -1176,7 +1179,7 @@ export default function EquipePage() {
                             key={perfil.perfil_acesso_id}
                             value={perfil.perfil_acesso_id}
                           >
-                            {perfil.nome}
+                            {getNomePerfilAcesso(perfil.perfil_acesso_id)}
                           </option>
                         ))}
                       </select>
@@ -1397,7 +1400,7 @@ export default function EquipePage() {
                                 key={perfil.perfil_acesso_id}
                                 value={perfil.perfil_acesso_id}
                               >
-                                {perfil.nome}
+                                {getNomePerfilAcesso(perfil.perfil_acesso_id)}
                               </option>
                             ))}
                           </select>
@@ -1465,7 +1468,7 @@ export default function EquipePage() {
                                 key={perfil.perfil_acesso_id}
                                 value={perfil.perfil_acesso_id}
                               >
-                                {perfil.nome}
+                                {getNomePerfilAcesso(perfil.perfil_acesso_id)}
                               </option>
                             ))}
                           </select>

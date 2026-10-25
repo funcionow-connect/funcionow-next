@@ -12,7 +12,13 @@ type UsuarioVinculo = {
   perfil_acesso_id: string | null;
 };
 
-type EmpresaDisponivel = { empresa_id: string; nome: string; papel: string; empresa_ativa: boolean; };
+type EmpresaDisponivel = {
+  empresa_id: string;
+  nome: string;
+  papel: string;
+  perfil_acesso_id: string | null;
+  empresa_ativa: boolean;
+};
 
 type PerfilAcesso = {
   nome: string;
@@ -178,7 +184,13 @@ export default function AppLayout({
         setEmpresaAtivaId(empresaAtivaIdAtual);
         const { data: empresasDoUsuario, error: empresasError } = await supabase.rpc("listar_empresas_do_usuario");
         if (empresasError) console.error("Erro ao carregar empresas do usuário:", empresasError);
-        setEmpresasDisponiveis((empresasDoUsuario || []) as EmpresaDisponivel[]);
+        const empresas = (empresasDoUsuario || []) as EmpresaDisponivel[];
+        setEmpresasDisponiveis(empresas);
+        const empresaAtiva = empresas.find(
+          (empresa) => empresa.empresa_id === empresaAtivaIdAtual,
+        );
+        const perfilAcessoIdAtual =
+          empresaAtiva?.perfil_acesso_id || usuario.perfil_acesso_id;
         const [{ data: empresaAtual }, { data: assinaturaAtual }] = await Promise.all([
           supabase.from("empresas").select("nome").eq("empresa_id", empresaAtivaIdAtual).maybeSingle<{ nome: string }>(),
           supabase.from("empresa_assinaturas").select("status, plano_id, planos(slug, nome)").eq("empresa_id", empresaAtivaIdAtual).maybeSingle<any>(),
@@ -198,11 +210,11 @@ export default function AppLayout({
         let itensPermitidos: MenuItem[] = [];
         let nomePerfil = "";
 
-        if (usuario.perfil_acesso_id) {
+        if (perfilAcessoIdAtual) {
           const { data: perfilAcesso, error: perfilError } = await supabase
             .from("perfis_acesso")
             .select("nome, slug, is_admin")
-            .eq("perfil_acesso_id", usuario.perfil_acesso_id)
+            .eq("perfil_acesso_id", perfilAcessoIdAtual)
             .maybeSingle<PerfilAcesso>();
 
           if (perfilError) {
@@ -216,15 +228,14 @@ export default function AppLayout({
             .select(
               "pagina_key, pode_acessar, paginas_sistema(pagina_key, nome, rota, ordem, ativo)",
             )
-            .eq("perfil_acesso_id", usuario.perfil_acesso_id)
+            .eq("perfil_acesso_id", perfilAcessoIdAtual)
             .eq("pode_acessar", true);
 
           if (permissoesError) {
             console.error("Erro ao buscar permissões:", permissoesError);
-            // Em caso de falha de leitura, manter a compatibilidade com o
-            // modelo legado. Uma resposta vazia, porém válida, deve continuar
-            // vazia para não transformar ausência de permissão em acesso.
-            itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
+            // Falha de leitura não deve transformar o perfil legado em acesso.
+            // O menu fica vazio e a rota é bloqueada até a permissão ser lida.
+            itensPermitidos = [];
           } else {
             itensPermitidos = ((permissoes || []) as PermissaoPagina[])
               .map((permissao) => {
@@ -247,10 +258,8 @@ export default function AppLayout({
           }
         }
 
-        if (itensPermitidos.length === 0 && !usuario.perfil_acesso_id) {
-          itensPermitidos = getFallbackMenuByPerfil(usuario.perfil);
-          nomePerfil = formatPerfilAntigo(usuario.perfil);
-        }
+        // Sem um perfil por empresa, o acesso permanece fechado. O campo
+        // legado `perfil` não deve reabrir menus depois de uma falha de leitura.
 
         const jaTemPerfil = itensPermitidos.some(
           (item) => item.href === "/perfil",
@@ -595,43 +604,6 @@ const getInitials = (name: string) => {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-};
-
-const getFallbackMenuByPerfil = (perfil: string | null): MenuItem[] => {
-  if (perfil === "admin") {
-    return fallbackMenuItems;
-  }
-
-  if (perfil === "suporte") {
-    return fallbackMenuItems.filter((item) =>
-      [
-        "/dashboard",
-        "/creators",
-        "/speakers",
-        "/avaliacoes",
-        "/campanhas",
-        "/operacao",
-        "/perfil",
-      ].includes(item.href),
-    );
-  }
-
-  if (perfil === "terceirizado") {
-    return fallbackMenuItems.filter((item) =>
-      ["/dashboard", "/creators", "/speakers", "/avaliacoes", "/operacao", "/perfil"].includes(
-        item.href,
-      ),
-    );
-  }
-
-  return fallbackMenuItems.filter((item) => item.href === "/perfil");
-};
-
-const formatPerfilAntigo = (perfil: string | null) => {
-  if (perfil === "admin") return "Administrador";
-  if (perfil === "suporte") return "Gestor";
-  if (perfil === "terceirizado") return "Colaborador externo";
-  return "Não definido";
 };
 
 const getGroupItemsStyle = (open: boolean) => ({

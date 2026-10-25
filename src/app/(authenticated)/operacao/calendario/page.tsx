@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -254,6 +255,7 @@ export default function CalendarioPage() {
   };
 
   const criarEvento = async () => {
+    if (!(await requirePagePermission("operacao_calendario", "pode_criar"))) return;
     if (!usuarioAtual) return alert("Usuário não carregado.");
     if (!titulo.trim()) return alert("Informe o título do evento.");
     if (!dataInicio) return alert("Informe a data e horário de início.");
@@ -300,6 +302,7 @@ export default function CalendarioPage() {
   };
 
   const excluirEvento = async (eventoId: string) => {
+    if (!(await requirePagePermission("operacao_calendario", "pode_excluir"))) return;
     if (!window.confirm("Deseja excluir este evento?")) return;
 
     try {
@@ -322,6 +325,7 @@ export default function CalendarioPage() {
   };
 
   const atualizarStatusPrazo = async (prazo: PrazoCampanha, status: string) => {
+    if (!(await requirePagePermission("operacao_calendario", "pode_editar"))) return;
     const { error } = await supabase.from("campanha_entregaveis").update({ status }).eq("entregavel_id", prazo.entregavel_id);
     if (error) { alert("Não foi possível atualizar o status do entregável."); return; }
     setPrazosCampanhas((current) => current.map((item) => item.entregavel_id === prazo.entregavel_id ? { ...item, status } : item));

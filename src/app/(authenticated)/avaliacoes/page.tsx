@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioEmpresa = {
   empresa_id: string;
@@ -143,6 +144,7 @@ export default function AvaliacoesPage() {
   };
 
   const handleCreateCriterio = async () => {
+    if (!(await requirePagePermission("avaliacoes", "pode_criar"))) return;
     try {
       const nomeLimpo = nomeCriterio.trim();
 
@@ -217,6 +219,7 @@ export default function AvaliacoesPage() {
   };
 
   const handleDeleteCriterio = async (criterioId: string, nome: string) => {
+    if (!(await requirePagePermission("avaliacoes", "pode_excluir"))) return;
     const confirmado = window.confirm(`Excluir o critério "${nome}"?`);
 
     if (!confirmado) return;

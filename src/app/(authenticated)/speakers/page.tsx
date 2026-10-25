@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Speaker = { speaker_id: string; creator_id: string | null; nome: string; email: string | null; instagram: string | null; especialidade: string | null; percentual_comissao: number; ativo: boolean };
 type Creator = { creator_id: string; nome: string; instagram: string; status: string | null };
@@ -47,7 +48,7 @@ export default function SpeakersPage() {
   useEffect(() => { void load(); }, []);
 
   const addSpeaker = async (event: FormEvent) => {
-    event.preventDefault(); if (!empresaId || !speakerForm.nome.trim()) return;
+    event.preventDefault(); if (!(await requirePagePermission("speakers", "pode_criar"))) return; if (!empresaId || !speakerForm.nome.trim()) return;
     setSaving(true); setError("");
     const { data, error: insertError } = await supabase.from("speakers").insert({ empresa_id: empresaId, creator_id: speakerForm.creatorId || null, nome: speakerForm.nome.trim(), email: speakerForm.email.trim() || null, instagram: speakerForm.instagram.trim() || null, especialidade: speakerForm.especialidade.trim() || null, percentual_comissao: Number(speakerForm.percentual) || 0 }).select("speaker_id, creator_id, nome, email, instagram, especialidade, percentual_comissao, ativo").single();
     if (insertError) setError(insertError.code === "23505" ? "Este creator já foi promovido a speaker." : insertError.message); else { const speaker = data as Speaker; setSpeakers((current) => [...current, speaker].sort((a, b) => a.nome.localeCompare(b.nome))); setSelectedSpeaker(speaker.speaker_id); setSpeakerForm({ nome: "", email: "", instagram: "", especialidade: "", percentual: "", creatorId: "" }); }
@@ -55,7 +56,7 @@ export default function SpeakersPage() {
   };
 
   const assignCreator = async (event: FormEvent) => {
-    event.preventDefault(); if (!empresaId || !selectedSpeaker || !creatorId) return;
+    event.preventDefault(); if (!(await requirePagePermission("speakers", "pode_editar"))) return; if (!empresaId || !selectedSpeaker || !creatorId) return;
     setSaving(true); setError("");
     const { data, error: insertError } = await supabase.from("speaker_creators").insert({ empresa_id: empresaId, speaker_id: selectedSpeaker, creator_id: creatorId, percentual_comissao: Number(creatorPercentual) || 0 }).select("speaker_creator_id, speaker_id, creator_id, percentual_comissao, ativo").single();
     if (insertError) setError(insertError.code === "23505" ? "Este creator já está vinculado a um speaker." : insertError.message); else { setLinks((current) => [...current, data as LinkRow]); setCreatorId(""); setCreatorPercentual(""); }
@@ -63,6 +64,7 @@ export default function SpeakersPage() {
   };
 
   const removeCreator = async (link: LinkRow) => {
+    if (!(await requirePagePermission("speakers", "pode_excluir"))) return;
     const { error: updateError } = await supabase.from("speaker_creators").update({ ativo: false }).eq("speaker_creator_id", link.speaker_creator_id);
     if (updateError) setError(updateError.message); else setLinks((current) => current.filter((item) => item.speaker_creator_id !== link.speaker_creator_id));
   };

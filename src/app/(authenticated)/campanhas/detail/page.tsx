@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Campaign = { campanha_id: string; nome: string; descricao: string | null; status: string; data_inicio: string | null; data_fim: string | null; orcamento: number | null; receita: number | null };
 type CampaignCreator = { campanha_creator_id: string; creator_id: string; status: string; custo: number | null; receita: number | null; alcance: number | null; cliques: number | null; conversoes: number | null; nome: string; instagram: string };
@@ -74,6 +75,7 @@ export default function CampanhaDetailPage() {
 
   const addDeliverable = async (event: FormEvent) => {
     event.preventDefault();
+    if (!(await requirePagePermission("campanhas", "pode_criar"))) return;
     if (!id || !newTitle.trim()) return;
     setSaving(true); setError("");
     const { data, error: insertError } = await supabase.from("campanha_entregaveis").insert({ campanha_id: id, titulo: newTitle.trim(), status: newStatus, prazo: newDeadline || null, custo: Number(newCost) || 0, receita: Number(newRevenue) || 0, creator_id: newCreator || null }).select("entregavel_id, titulo, status, prazo, custo, receita, creator_id").single();
@@ -83,12 +85,14 @@ export default function CampanhaDetailPage() {
   };
 
   const updateDeliverableStatus = async (item: Deliverable, status: string) => {
+    if (!(await requirePagePermission("campanhas", "pode_editar"))) return;
     const { error: updateError } = await supabase.from("campanha_entregaveis").update({ status }).eq("entregavel_id", item.entregavel_id);
     if (updateError) { setError("Não foi possível atualizar o status do entregável."); return; }
     setDeliverables((current) => current.map((entry) => entry.entregavel_id === item.entregavel_id ? { ...entry, status } : entry));
   };
 
   const addCreator = async (creatorId: string) => {
+    if (!(await requirePagePermission("campanhas", "pode_editar"))) return;
     if (!id || !creatorId) return;
     const { data, error: insertError } = await supabase.from("campanha_creators").insert({ campanha_id: id, creator_id: creatorId, status: "convidado" }).select("campanha_creator_id, creator_id, status").single();
     if (insertError || !data) { setError(insertError?.message || "Não foi possível vincular o creator."); return; }
@@ -99,6 +103,7 @@ export default function CampanhaDetailPage() {
   };
 
   const updateCreatorStatus = async (creator: CampaignCreator, status: string) => {
+    if (!(await requirePagePermission("campanhas", "pode_editar"))) return;
     const { error: updateError } = await supabase.from("campanha_creators").update({ status }).eq("campanha_creator_id", creator.campanha_creator_id);
     if (updateError) { setError("Não foi possível atualizar o status do creator."); return; }
     setCreators((current) => current.map((item) => item.campanha_creator_id === creator.campanha_creator_id ? { ...item, status } : item));
@@ -110,6 +115,7 @@ export default function CampanhaDetailPage() {
   };
 
   const savePerformance = async (creator: CampaignCreator) => {
+    if (!(await requirePagePermission("campanhas", "pode_editar"))) return;
     const values = { custo: Number(performanceForm.custo) || 0, receita: Number(performanceForm.receita) || 0, alcance: Number(performanceForm.alcance) || 0, cliques: Number(performanceForm.cliques) || 0, conversoes: Number(performanceForm.conversoes) || 0 };
     const { error: updateError } = await supabase.from("campanha_creators").update(values).eq("campanha_creator_id", creator.campanha_creator_id);
     if (updateError) { setError("Não foi possível salvar as métricas do creator. Execute a migration 11 antes de usar este recurso."); return; }
@@ -119,6 +125,7 @@ export default function CampanhaDetailPage() {
 
   const updateCampaign = async (event: FormEvent) => {
     event.preventDefault();
+    if (!(await requirePagePermission("campanhas", "pode_editar"))) return;
     if (!id || !editName.trim()) return;
     setSavingCampaign(true); setError("");
     const { data, error: updateError } = await supabase.from("campanhas").update({ nome: editName.trim(), descricao: editDescription.trim() || null, status: editStatus, data_inicio: editStart || null, data_fim: editEnd || null, orcamento: Number(editBudget) || 0, receita: Number(editRevenue) || 0 }).eq("campanha_id", id).select("campanha_id, nome, descricao, status, data_inicio, data_fim, orcamento, receita").single();

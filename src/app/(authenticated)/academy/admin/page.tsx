@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Track = { trilha_id: string; titulo: string; descricao: string | null; nivel: string; categoria: string; ativo: boolean };
 
@@ -22,7 +23,7 @@ export default function AcademyAdminPage() {
   useEffect(() => { void load(); }, []);
 
   const createTrack = async (event: FormEvent) => {
-    event.preventDefault(); setMessage("");
+    event.preventDefault(); if (!(await requirePagePermission("academy", "pode_criar"))) return; setMessage("");
     if (!title.trim()) { setMessage("Informe o título da trilha."); return; }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { setMessage("Faça login para cadastrar uma trilha."); return; }

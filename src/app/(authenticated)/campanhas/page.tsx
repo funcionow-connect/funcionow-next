@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Status = "planejada" | "ativa" | "finalizada" | "cancelada";
 type Campanha = { campanha_id: string; nome: string; descricao: string | null; status: Status; data_inicio: string | null; data_fim: string | null; orcamento: number | null; receita: number | null };
@@ -51,7 +52,7 @@ export default function CampanhasPage() {
   }), [campanhas, search, statusFilter]);
 
   const handleCreate = async (event: FormEvent) => {
-    event.preventDefault(); if (!nome.trim()) return; setSaving(true);
+    event.preventDefault(); if (!(await requirePagePermission("campanhas", "pode_criar"))) return; if (!nome.trim()) return; setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
     const { data: usuario } = session?.user ? await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle() : { data: null };
     const result = usuario?.empresa_id ? await supabase.from("campanhas").insert({ nome: nome.trim(), descricao: descricao.trim() || null, status, empresa_id: usuario.empresa_id, data_inicio: dataInicio || null, data_fim: dataFim || null, orcamento: Number(orcamento) || 0, receita: Number(receita) || 0 }) : { error: new Error("Usuário sem empresa") };

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -276,6 +277,7 @@ export default function ReunioesPage() {
   };
 
   const criarReuniao = async () => {
+    if (!(await requirePagePermission("operacao_reunioes", "pode_criar"))) return;
     if (!usuarioAtual) {
       alert("Usuário não carregado.");
       return;
@@ -389,6 +391,7 @@ export default function ReunioesPage() {
   };
 
   const salvarEdicao = async () => {
+    if (!(await requirePagePermission("operacao_reunioes", "pode_editar"))) return;
     if (!editandoReuniaoId || !usuarioAtual) return;
     if (!editTitulo.trim()) { alert("Informe o título da reunião."); return; }
     try {
@@ -489,6 +492,7 @@ export default function ReunioesPage() {
   };
 
   const salvarTarefasGeradas = async () => {
+    if (!(await requirePagePermission("operacao_tarefas", "pode_criar"))) return;
     if (!usuarioAtual) {
       alert("Usuário não carregado.");
       return;

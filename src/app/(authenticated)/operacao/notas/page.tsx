@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -176,6 +177,7 @@ export default function NotasPage() {
   };
 
   const criarNota = async () => {
+    if (!(await requirePagePermission("operacao_notas", "pode_criar"))) return;
     if (!usuarioAtual) {
       alert("Usuário não carregado.");
       return;
@@ -272,6 +274,7 @@ export default function NotasPage() {
   };
 
   const salvarEdicaoNota = async () => {
+    if (!(await requirePagePermission("operacao_notas", "pode_editar"))) return;
     if (!usuarioAtual || !editandoNotaId) return;
     const conteudoTexto = editorRef.current?.innerText.trim() ?? "";
     if (!titulo.trim()) { alert("Informe o título da nota."); return; }
@@ -306,6 +309,7 @@ export default function NotasPage() {
   };
 
   const excluirNota = async (notaId: string) => {
+    if (!(await requirePagePermission("operacao_notas", "pode_excluir"))) return;
     const confirmar = window.confirm("Deseja excluir esta nota?");
 
     if (!confirmar) return;

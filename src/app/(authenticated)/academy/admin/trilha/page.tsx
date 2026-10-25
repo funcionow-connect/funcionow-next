@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Lesson = { aula_id: string; titulo: string; descricao: string | null; ordem: number; duracao_min: number; ativo: boolean };
 
@@ -30,6 +31,7 @@ export default function AcademyLessonsAdminPage() {
 
   const addLesson = async (event: FormEvent) => {
     event.preventDefault(); setMessage("");
+    if (!(await requirePagePermission("academy", "pode_criar"))) return;
     if (!trackId || !lessonTitle.trim()) { setMessage("Informe o título da aula."); return; }
     const nextOrder = lessons.reduce((max, item) => Math.max(max, item.ordem), 0) + 1;
     const { error } = await supabase.from("academy_aulas").insert({ trilha_id: trackId, titulo: lessonTitle.trim(), descricao: description.trim() || null, ordem: nextOrder, duracao_min: Math.max(0, Number(duration) || 0) });
@@ -38,6 +40,7 @@ export default function AcademyLessonsAdminPage() {
   };
 
   const removeLesson = async (lesson: Lesson) => {
+    if (!(await requirePagePermission("academy", "pode_excluir"))) return;
     if (!window.confirm(`Excluir a aula “${lesson.titulo}”?`)) return;
     const { error } = await supabase.from("academy_aulas").delete().eq("aula_id", lesson.aula_id);
     if (error) { setMessage("Não foi possível excluir a aula."); return; }

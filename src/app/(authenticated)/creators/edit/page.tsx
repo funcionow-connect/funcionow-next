@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 
 type UsuarioEmpresa = {
@@ -111,7 +112,7 @@ function EditCreatorContent() {
 
     if (error) {
       console.error("Erro ao buscar permissão de edição:", error);
-      return perfilLegado === "admin" || perfilLegado === "suporte";
+      return false;
     }
 
     return Boolean(data?.pode_acessar && data?.pode_editar);
@@ -315,6 +316,7 @@ function EditCreatorContent() {
   };
 
   const handleSaveCadastro = async () => {
+    if (!(await requirePagePermission("creators", "pode_editar"))) return;
     if (!nome.trim() || !instagram.trim()) {
       alert("Preencha nome e instagram.");
       return;
@@ -388,6 +390,7 @@ function EditCreatorContent() {
   };
 
   const handleSaveMetricas = async () => {
+    if (!(await requirePagePermission("creators", "pode_editar"))) return;
     if (!empresaId || !creatorId) {
       alert("Empresa ou creator não encontrado.");
       return;

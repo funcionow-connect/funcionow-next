@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type Secao = "visao_geral" | "estrategia" | "publico" | "comunicacao";
 type Diretriz = { diretriz_id: string; empresa_id: string; secao: Secao; rotulo: string; conteudo: string; ordem: number; ativo: boolean; criado_por: string | null };
@@ -53,6 +54,7 @@ export default function EmpresaPage() {
   const abrirEdicao = (item: Diretriz) => { setEditando(item); setNovoRotulo(item.rotulo); setNovoConteudo(item.conteudo); setEditorAberto(true); };
   const limparEditor = () => { setEditando(null); setNovoRotulo(""); setNovoConteudo(""); setEditorAberto(false); };
   const salvarDiretriz = async () => {
+    if (!(await requirePagePermission("empresa", editando ? "pode_editar" : "pode_criar"))) return;
     if (!empresa || !novoRotulo.trim() || !novoConteudo.trim()) { alert("Preencha o título e o conteúdo."); return; }
     try {
       setSalvando(true);
@@ -69,6 +71,7 @@ export default function EmpresaPage() {
     } catch (error) { console.error(error); alert("Não foi possível salvar esta informação."); } finally { setSalvando(false); }
   };
   const excluirDiretriz = async (id: string) => {
+    if (!(await requirePagePermission("empresa", "pode_excluir"))) return;
     if (!window.confirm("Excluir esta informação da empresa?")) return;
     const { error } = await supabase.from("empresa_diretrizes").update({ ativo: false }).eq("diretriz_id", id);
     if (error) { alert("Não foi possível excluir esta informação."); return; }

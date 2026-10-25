@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -237,6 +238,7 @@ setTarefas((tarefasResult.data ?? []) as Tarefa[]);
   };
 
   const criarTarefa = async () => {
+    if (!(await requirePagePermission("operacao_tarefas", "pode_criar"))) return;
     if (!usuarioAtual) {
       alert("Usuário não carregado.");
       return;
@@ -318,6 +320,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
   };
 
   const salvarEdicao = async () => {
+    if (!(await requirePagePermission("operacao_tarefas", "pode_editar"))) return;
     if (!editandoTarefaId || !usuarioAtual) return;
     if (!editTitulo.trim()) { alert("Informe o título da tarefa."); return; }
     try {
@@ -349,6 +352,7 @@ if (titulo.includes("use client") || titulo.includes("import ")) {
     tarefaId: string,
     novoStatus: Tarefa["status"]
   ) => {
+    if (!(await requirePagePermission("operacao_tarefas", "pode_editar"))) return;
     try {
       const payload =
         novoStatus === "concluido"

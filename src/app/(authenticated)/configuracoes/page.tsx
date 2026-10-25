@@ -75,6 +75,7 @@ const emptyPermissao: PermissaoDraft = {
 
 export default function ConfiguracoesPage() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [isAdminUsuario, setIsAdminUsuario] = useState(false);
 
   const [loadingCategorias, setLoadingCategorias] = useState(true);
   const [savingCategoria, setSavingCategoria] = useState(false);
@@ -335,9 +336,9 @@ export default function ConfiguracoesPage() {
 
     const { data: usuario, error: usuarioError } = await supabase
       .from("usuarios")
-      .select("empresa_id")
+      .select("empresa_id, perfil")
       .eq("usuario_id", session.user.id)
-      .single<UsuarioEmpresa>();
+      .single<UsuarioEmpresa & { perfil: string | null }>();
 
     if (usuarioError || !usuario?.empresa_id) {
       console.error("Erro ao buscar empresa do usuário:", usuarioError);
@@ -350,6 +351,7 @@ export default function ConfiguracoesPage() {
     }
 
     setEmpresaId(usuario.empresa_id);
+    setIsAdminUsuario(usuario.perfil === "admin");
 
     await Promise.all([
       loadCategorias(usuario.empresa_id),
@@ -533,6 +535,11 @@ export default function ConfiguracoesPage() {
   };
 
   const handleCreatePerfilAcesso = async () => {
+    if (!isAdminUsuario) {
+      alert("Apenas administradores podem criar perfis de acesso.");
+      return;
+    }
+
     if (!empresaId) {
       alert("Empresa não encontrada.");
       return;
@@ -644,6 +651,11 @@ export default function ConfiguracoesPage() {
   };
 
   const handleSalvarPermissoes = async () => {
+    if (!isAdminUsuario) {
+      alert("Apenas administradores podem alterar permissões.");
+      return;
+    }
+
     if (!selectedPerfilId) {
       alert("Selecione um perfil de acesso.");
       return;
@@ -1122,10 +1134,14 @@ export default function ConfiguracoesPage() {
                   <button
                     type="button"
                     onClick={handleCreatePerfilAcesso}
-                    disabled={savingNovoPerfil}
+                    disabled={savingNovoPerfil || !isAdminUsuario}
                     style={{ ...saveButton, marginTop: "8px", width: "100%" }}
                   >
-                    {savingNovoPerfil ? "Criando..." : "Criar perfil"}
+                    {savingNovoPerfil
+                      ? "Criando..."
+                      : isAdminUsuario
+                        ? "Criar perfil"
+                        : "Somente administradores"}
                   </button>
                 </div>
               </div>
@@ -1139,15 +1155,25 @@ export default function ConfiguracoesPage() {
                         ? getPerfilNomeVisual(selectedPerfil)
                         : "Selecione um perfil"}
                     </div>
+                    <div style={permissionHelpText}>
+                      Acessar libera a página. Criar, editar e excluir controlam as ações dentro dela.
+                      Se Acessar estiver desmarcado, as demais ações ficam bloqueadas.
+                    </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleSalvarPermissoes}
-                    disabled={savingPermissoes || !selectedPerfilId}
+                    disabled={
+                      savingPermissoes || !selectedPerfilId || !isAdminUsuario
+                    }
                     style={saveButton}
                   >
-                    {savingPermissoes ? "Salvando..." : "Salvar permissões"}
+                    {savingPermissoes
+                      ? "Salvando..."
+                      : isAdminUsuario
+                        ? "Salvar permissões"
+                        : "Somente administradores"}
                   </button>
                 </div>
 
@@ -1159,10 +1185,10 @@ export default function ConfiguracoesPage() {
                   <div style={permissionTable}>
                     <div style={permissionHeaderRow}>
                       <div>Página</div>
-                      <div style={permissionHeaderCell}>Acessar</div>
-                      <div style={permissionHeaderCell}>Criar</div>
-                      <div style={permissionHeaderCell}>Editar</div>
-                      <div style={permissionHeaderCell}>Excluir</div>
+                      <div style={permissionHeaderCell} title="Permite abrir e visualizar a página">Acessar</div>
+                      <div style={permissionHeaderCell} title="Permite criar registros">Criar</div>
+                      <div style={permissionHeaderCell} title="Permite alterar registros">Editar</div>
+                      <div style={permissionHeaderCell} title="Permite excluir registros">Excluir</div>
                     </div>
 
                     {paginasSistema.map((pagina) => {
@@ -1179,6 +1205,7 @@ export default function ConfiguracoesPage() {
 
                           <CheckCell
                             checked={permissao.pode_acessar}
+                            disabled={!isAdminUsuario}
                             onClick={() =>
                               handleTogglePermissao(
                                 pagina.pagina_key,
@@ -1189,6 +1216,7 @@ export default function ConfiguracoesPage() {
 
                           <CheckCell
                             checked={permissao.pode_criar}
+                            disabled={!isAdminUsuario || !permissao.pode_acessar}
                             onClick={() =>
                               handleTogglePermissao(
                                 pagina.pagina_key,
@@ -1199,6 +1227,7 @@ export default function ConfiguracoesPage() {
 
                           <CheckCell
                             checked={permissao.pode_editar}
+                            disabled={!isAdminUsuario || !permissao.pode_acessar}
                             onClick={() =>
                               handleTogglePermissao(
                                 pagina.pagina_key,
@@ -1209,6 +1238,7 @@ export default function ConfiguracoesPage() {
 
                           <CheckCell
                             checked={permissao.pode_excluir}
+                            disabled={!isAdminUsuario || !permissao.pode_acessar}
                             onClick={() =>
                               handleTogglePermissao(
                                 pagina.pagina_key,
@@ -1281,16 +1311,24 @@ export default function ConfiguracoesPage() {
 
 function CheckCell({
   checked,
+  disabled = false,
   onClick,
 }: {
   checked: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      style={checked ? checkButtonActive : checkButton}
+      disabled={disabled}
+      aria-pressed={checked}
+      aria-label={checked ? "Permissão ativada" : "Permissão desativada"}
+      style={{
+        ...(checked ? checkButtonActive : checkButton),
+        ...(disabled ? checkButtonDisabled : {}),
+      }}
     >
       {checked ? "✓" : ""}
     </button>
@@ -1325,8 +1363,8 @@ function Toggle({ defaultOn = false }: { defaultOn?: boolean }) {
 
 function getPerfilNomeVisual(perfil: PerfilAcesso) {
   if (perfil.slug === "admin") return "Administrador";
-  if (perfil.slug === "operacional") return "Gestor";
-  if (perfil.slug === "externo") return "Colaborador externo";
+  if (perfil.slug === "operacional") return "Operacional";
+  if (perfil.slug === "externo") return "Externo";
   return perfil.nome;
 }
 
@@ -1600,6 +1638,14 @@ const selectedProfileName = {
   color: "#111827",
 };
 
+const permissionHelpText = {
+  maxWidth: "620px",
+  marginTop: "5px",
+  fontSize: "11px",
+  lineHeight: 1.45,
+  color: "#6b7280",
+};
+
 const permissionTable = {
   display: "grid",
   gap: "6px",
@@ -1654,6 +1700,11 @@ const checkButton = {
   cursor: "pointer",
   fontSize: "14px",
   fontWeight: 800,
+};
+
+const checkButtonDisabled = {
+  opacity: 0.45,
+  cursor: "not-allowed",
 };
 
 const checkButtonActive = {
