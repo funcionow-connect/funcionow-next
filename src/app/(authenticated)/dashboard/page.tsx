@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type Campaign = { campanha_id: string; nome: string; status: string; orcamento: number | null; receita: number | null };
 type Deliverable = { entregavel_id: string; titulo: string; status: string; prazo: string | null; campanha_id: string };
@@ -19,30 +20,19 @@ export default function DashboardPage() {
     }
 
     const loadData = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) return;
-
-      const user = session.user;
-
-      const { data: usuario } = await supabase
-        .from("usuarios")
-        .select("empresa_id")
-        .eq("usuario_id", user.id)
-        .single();
+      const contexto = await getActiveCompanyContext();
+      if (!contexto) return;
 
       const { data } = await supabase
         .from("creators")
         .select("*")
-        .eq("empresa_id", usuario?.empresa_id);
+        .eq("empresa_id", contexto.empresaId);
 
       setCreators(data || []);
       const { data: campaignData } = await supabase
         .from("campanhas")
         .select("campanha_id, nome, status, orcamento, receita")
-        .eq("empresa_id", usuario?.empresa_id)
+        .eq("empresa_id", contexto.empresaId)
         .order("criado_em", { ascending: false });
       setCampaigns(campaignData || []);
       const campaignIds = (campaignData || []).map((campaign) => campaign.campanha_id);

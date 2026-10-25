@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 
 type Status = "planejada" | "ativa" | "finalizada" | "cancelada";
 type Campanha = { campanha_id: string; nome: string; descricao: string | null; status: Status; data_inicio: string | null; data_fim: string | null; orcamento: number | null; receita: number | null };
@@ -29,11 +29,9 @@ export default function CampanhasPage() {
 
   const loadCampanhas = async () => {
     setLoading(true); setError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setError("Faça login para visualizar as campanhas."); setLoading(false); return; }
-    const { data: usuario, error: usuarioError } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle();
-    if (usuarioError || !usuario?.empresa_id) { setError("Não foi possível identificar a empresa deste usuário."); setLoading(false); return; }
-    const { data, error: campanhasError } = await supabase.from("campanhas").select("campanha_id, nome, descricao, status, data_inicio, data_fim, orcamento, receita").eq("empresa_id", usuario.empresa_id).order("criado_em", { ascending: false });
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) { setError("Não foi possível identificar a empresa ativa deste usuário."); setLoading(false); return; }
+    const { data, error: campanhasError } = await supabase.from("campanhas").select("campanha_id, nome, descricao, status, data_inicio, data_fim, orcamento, receita").eq("empresa_id", contexto.empresaId).order("criado_em", { ascending: false });
     if (campanhasError) { setError("A estrutura de campanhas ainda não foi aplicada no Supabase."); setLoading(false); return; }
     const ids = (data || []).map((item) => item.campanha_id);
     const [{ data: vinculados }, { data: entregaveis }] = ids.length ? await Promise.all([
@@ -53,9 +51,8 @@ export default function CampanhasPage() {
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault(); if (!(await requirePagePermission("campanhas", "pode_criar"))) return; if (!nome.trim()) return; setSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data: usuario } = session?.user ? await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle() : { data: null };
-    const result = usuario?.empresa_id ? await supabase.from("campanhas").insert({ nome: nome.trim(), descricao: descricao.trim() || null, status, empresa_id: usuario.empresa_id, data_inicio: dataInicio || null, data_fim: dataFim || null, orcamento: Number(orcamento) || 0, receita: Number(receita) || 0 }) : { error: new Error("Usuário sem empresa") };
+    const contexto = await getActiveCompanyContext();
+    const result = contexto ? await supabase.from("campanhas").insert({ nome: nome.trim(), descricao: descricao.trim() || null, status, empresa_id: contexto.empresaId, data_inicio: dataInicio || null, data_fim: dataFim || null, orcamento: Number(orcamento) || 0, receita: Number(receita) || 0 }) : { error: new Error("Usuário sem empresa ativa") };
     setSaving(false); if (result.error) { setError(result.error.message); return; }
     setNome(""); setDescricao(""); setDataInicio(""); setDataFim(""); setOrcamento(""); setReceita(""); setShowForm(false); await loadCampanhas();
   };

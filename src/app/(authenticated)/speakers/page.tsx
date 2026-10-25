@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 
 type Speaker = { speaker_id: string; creator_id: string | null; nome: string; email: string | null; instagram: string | null; especialidade: string | null; percentual_comissao: number; ativo: boolean };
 type Creator = { creator_id: string; nome: string; instagram: string; status: string | null };
@@ -28,15 +28,13 @@ export default function SpeakersPage() {
 
   const load = async () => {
     setLoading(true); setError("");
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setError("Faça login para acessar a rede de speakers."); setLoading(false); return; }
-    const { data: usuario, error: userError } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle<{ empresa_id: string }>();
-    if (userError || !usuario?.empresa_id) { setError("Não foi possível identificar a empresa."); setLoading(false); return; }
-    setEmpresaId(usuario.empresa_id);
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) { setError("Não foi possível identificar a empresa ativa."); setLoading(false); return; }
+    setEmpresaId(contexto.empresaId);
     const [speakerRes, creatorRes, linkRes] = await Promise.all([
-      supabase.from("speakers").select("speaker_id, creator_id, nome, email, instagram, especialidade, percentual_comissao, ativo").eq("empresa_id", usuario.empresa_id).eq("ativo", true).order("nome"),
-      supabase.from("creators").select("creator_id, nome, instagram, status").eq("empresa_id", usuario.empresa_id).order("nome"),
-      supabase.from("speaker_creators").select("speaker_creator_id, speaker_id, creator_id, percentual_comissao, ativo").eq("empresa_id", usuario.empresa_id).eq("ativo", true),
+      supabase.from("speakers").select("speaker_id, creator_id, nome, email, instagram, especialidade, percentual_comissao, ativo").eq("empresa_id", contexto.empresaId).eq("ativo", true).order("nome"),
+      supabase.from("creators").select("creator_id, nome, instagram, status").eq("empresa_id", contexto.empresaId).order("nome"),
+      supabase.from("speaker_creators").select("speaker_creator_id, speaker_id, creator_id, percentual_comissao, ativo").eq("empresa_id", contexto.empresaId).eq("ativo", true),
     ]);
     if (speakerRes.error || creatorRes.error || linkRes.error) setError("Execute as migrations 15_speakers_rede.sql e 16_speaker_creator_promotion.sql no Supabase para habilitar este módulo.");
     const nextSpeakers = (speakerRes.data || []) as Speaker[];

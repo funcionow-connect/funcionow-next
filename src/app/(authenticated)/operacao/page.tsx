@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
-  empresa_id: string;
   nome: string | null;
   email: string | null;
 };
@@ -130,25 +130,16 @@ export default function OperacaoDashboardPage() {
     try {
       setLoading(true);
 
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-
-      if (authError) {
-        console.error("Erro ao buscar usuário autenticado:", authError);
-        window.location.href = "/login";
-        return;
-      }
-
-      const authUserId = authData.user?.id;
-
-      if (!authUserId) {
+      const contexto = await getActiveCompanyContext();
+      if (!contexto) {
         window.location.href = "/login";
         return;
       }
 
       const { data: usuario, error: usuarioError } = await supabase
         .from("usuarios")
-        .select("usuario_id, empresa_id, nome, email")
-        .eq("usuario_id", authUserId)
+        .select("usuario_id, nome, email")
+        .eq("usuario_id", contexto.userId)
         .maybeSingle<UsuarioAtual>();
 
       if (usuarioError) {
@@ -157,14 +148,14 @@ export default function OperacaoDashboardPage() {
         return;
       }
 
-      if (!usuario?.empresa_id) {
+      if (!usuario) {
         window.location.href = "/perfil";
         return;
       }
 
-      setUsuarioAtual(usuario);
+      setUsuarioAtual({ ...usuario, usuario_id: contexto.userId });
 
-      const empresaId = usuario.empresa_id;
+      const empresaId = contexto.empresaId;
 
       const [
         projetosResult,

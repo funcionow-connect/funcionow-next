@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type RankingItem = { pos: number; nome: string; user: string; pontos: number; emoji: string };
 type Meta = { nome: string; pct: number };
@@ -17,15 +18,13 @@ export default function RewardsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { setError("Faça login para visualizar suas recompensas."); setLoading(false); return; }
-      const { data: user } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle<{ empresa_id: string }>();
-      if (!user?.empresa_id) { setError("Não foi possível identificar a empresa."); setLoading(false); return; }
+      const contexto = await getActiveCompanyContext();
+      if (!contexto) { setError("Não foi possível identificar a empresa ativa."); setLoading(false); return; }
       const [{ data: creators }, { data: campaigns }, { count: progressCount }, { count: postCount }] = await Promise.all([
-        supabase.from("creators").select("nome, instagram, score_total").eq("empresa_id", user.empresa_id).eq("status", "aprovado").order("score_total", { ascending: false, nullsFirst: false }).limit(10),
-        supabase.from("campanhas").select("campanha_id").eq("empresa_id", user.empresa_id),
-        supabase.from("academy_progresso").select("progresso_id", { count: "exact", head: true }).eq("usuario_id", session.user.id),
-        supabase.from("community_posts").select("post_id", { count: "exact", head: true }).eq("usuario_id", session.user.id),
+        supabase.from("creators").select("nome, instagram, score_total").eq("empresa_id", contexto.empresaId).eq("status", "aprovado").order("score_total", { ascending: false, nullsFirst: false }).limit(10),
+        supabase.from("campanhas").select("campanha_id").eq("empresa_id", contexto.empresaId),
+        supabase.from("academy_progresso").select("progresso_id", { count: "exact", head: true }).eq("usuario_id", contexto.userId),
+        supabase.from("community_posts").select("post_id", { count: "exact", head: true }).eq("usuario_id", contexto.userId),
       ]);
       const rankingData = creators || [];
       const scores = rankingData.map((item) => Number(item.score_total || 0));
@@ -58,8 +57,8 @@ export default function RewardsPage() {
     if (metasConcluidas < metas.length) { setRewardMessage("Complete todas as metas para girar a roda."); return; }
     const rewards = ["Consultoria de conteúdo", "Destaque na Comunidade", "Bônus de campanha"];
     const prize = rewards[Math.floor(Math.random() * rewards.length)];
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) { const { data: user } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle<{ empresa_id: string }>(); if (user?.empresa_id) await supabase.from("reward_events").insert({ empresa_id: user.empresa_id, usuario_id: session.user.id, tipo: "premio", codigo: prize.toLowerCase().replaceAll(" ", "_"), descricao: prize }); }
+    const contexto = await getActiveCompanyContext();
+    if (contexto) await supabase.from("reward_events").insert({ empresa_id: contexto.empresaId, usuario_id: contexto.userId, tipo: "premio", codigo: prize.toLowerCase().replaceAll(" ", "_"), descricao: prize });
     setRewardMessage(`Prêmio sorteado: ${prize}`);
   };
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 import { useRouter } from "next/navigation";
 
 
@@ -16,28 +16,9 @@ export default function NewCreatorPage() {
     if (!(await requirePagePermission("creators", "pode_criar"))) return;
     setLoading(true);
 
-    // pega usuário logado
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const user = session?.user;
-
-    if (!user) {
-      alert("Usuário não autenticado");
-      setLoading(false);
-      return;
-    }
-
-    // pega empresa do usuário
-    const { data: usuario } = await supabase
-      .from("usuarios")
-      .select("empresa_id")
-      .eq("usuario_id", user.id)
-      .single();
-
-    if (!usuario) {
-      alert("Erro ao buscar empresa");
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) {
+      alert("Não foi possível identificar a empresa ativa.");
       setLoading(false);
       return;
     }
@@ -47,7 +28,7 @@ export default function NewCreatorPage() {
       {
         nome,
         instagram,
-        empresa_id: usuario.empresa_id,
+        empresa_id: contexto.empresaId,
       },
     ]);
 

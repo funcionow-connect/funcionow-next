@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 
 type Track = { trilha_id: string; titulo: string; descricao: string | null; nivel: string; categoria: string; ativo: boolean };
 
@@ -17,7 +17,9 @@ export default function AcademyAdminPage() {
   const [message, setMessage] = useState("");
 
   const load = async () => {
-    const { data } = await supabase.from("academy_trilhas").select("trilha_id, titulo, descricao, nivel, categoria, ativo").order("titulo");
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) { setTracks([]); setLoading(false); return; }
+    const { data } = await supabase.from("academy_trilhas").select("trilha_id, titulo, descricao, nivel, categoria, ativo").eq("empresa_id", contexto.empresaId).order("titulo");
     setTracks(data || []); setLoading(false);
   };
   useEffect(() => { void load(); }, []);
@@ -25,11 +27,9 @@ export default function AcademyAdminPage() {
   const createTrack = async (event: FormEvent) => {
     event.preventDefault(); if (!(await requirePagePermission("academy", "pode_criar"))) return; setMessage("");
     if (!title.trim()) { setMessage("Informe o título da trilha."); return; }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setMessage("Faça login para cadastrar uma trilha."); return; }
-    const { data: user } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle();
-    if (!user?.empresa_id) { setMessage("Não foi possível identificar a empresa."); return; }
-    const { error } = await supabase.from("academy_trilhas").insert({ empresa_id: user.empresa_id, titulo: title.trim(), descricao: description.trim() || null, nivel: level, categoria: category.trim() || "geral" });
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) { setMessage("Não foi possível identificar a empresa ativa."); return; }
+    const { error } = await supabase.from("academy_trilhas").insert({ empresa_id: contexto.empresaId, titulo: title.trim(), descricao: description.trim() || null, nivel: level, categoria: category.trim() || "geral" });
     if (error) { setMessage("Não foi possível salvar. Verifique se seu perfil tem permissão e se a migration 12 foi executada."); return; }
     setTitle(""); setDescription(""); setMessage("Trilha criada."); await load();
   };

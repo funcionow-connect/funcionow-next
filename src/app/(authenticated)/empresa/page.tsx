@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type Secao = "visao_geral" | "estrategia" | "publico" | "comunicacao";
 type Diretriz = { diretriz_id: string; empresa_id: string; secao: Secao; rotulo: string; conteudo: string; ordem: number; ativo: boolean; criado_por: string | null };
@@ -35,13 +36,11 @@ export default function EmpresaPage() {
   const [salvando, setSalvando] = useState(false);
 
   const carregar = async () => {
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) { window.location.href = "/login"; return; }
-    const { data: usuario } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", authData.user.id).maybeSingle<{ empresa_id: string }>();
-    if (!usuario?.empresa_id) { alert("Não foi possível identificar a empresa deste usuário."); return; }
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) { window.location.href = "/login"; return; }
     const [{ data: empresaData, error: empresaError }, { data: diretrizesData, error: diretrizesError }] = await Promise.all([
-      supabase.from("empresas").select("empresa_id, nome, segmento, status").eq("empresa_id", usuario.empresa_id).maybeSingle<Empresa>(),
-      supabase.from("empresa_diretrizes").select("diretriz_id, empresa_id, secao, rotulo, conteudo, ordem, ativo, criado_por").eq("empresa_id", usuario.empresa_id).eq("ativo", true).order("ordem", { ascending: true }),
+      supabase.from("empresas").select("empresa_id, nome, segmento, status").eq("empresa_id", contexto.empresaId).maybeSingle<Empresa>(),
+      supabase.from("empresa_diretrizes").select("diretriz_id, empresa_id, secao, rotulo, conteudo, ordem, ativo, criado_por").eq("empresa_id", contexto.empresaId).eq("ativo", true).order("ordem", { ascending: true }),
     ]);
     if (empresaError || !empresaData) { console.error(empresaError); alert("Não foi possível carregar os dados da empresa."); return; }
     if (diretrizesError) console.error("Erro ao carregar diretrizes:", diretrizesError);

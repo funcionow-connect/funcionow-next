@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-};
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 
 type Etapa = {
   etapa_id: string;
@@ -45,42 +41,27 @@ export default function AvaliacoesPage() {
     try {
       setLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data: usuario, error: usuarioError } = await supabase
-        .from("usuarios")
-        .select("empresa_id")
-        .eq("usuario_id", session.user.id)
-        .single<UsuarioEmpresa>();
-
-      if (usuarioError || !usuario?.empresa_id) {
-        console.error("Erro ao buscar empresa do usuário:", usuarioError);
+      const contexto = await getActiveCompanyContext();
+      if (!contexto) {
         alert("Não foi possível identificar a empresa do usuário.");
         setLoading(false);
         return;
       }
 
-      setEmpresaId(usuario.empresa_id);
+      setEmpresaId(contexto.empresaId);
 
       const [criteriosRes, etapasRes] = await Promise.all([
         supabase
           .from("criterios_avaliacao")
           .select("criterio_id, nome, peso, tipo_resposta, ordem, etapa_id")
-          .eq("empresa_id", usuario.empresa_id)
+          .eq("empresa_id", contexto.empresaId)
           .order("ordem", { ascending: true, nullsFirst: false })
           .order("nome", { ascending: true }),
 
         supabase
           .from("funil_etapas")
           .select("etapa_id, nome, ordem")
-          .eq("empresa_id", usuario.empresa_id)
+          .eq("empresa_id", contexto.empresaId)
           .order("ordem", { ascending: true })
           .order("nome", { ascending: true }),
       ]);

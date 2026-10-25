@@ -3,10 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabaseClient";
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-};
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type Categoria = {
   categoria_id: string;
@@ -321,11 +318,8 @@ export default function ConfiguracoesPage() {
   };
 
   const loadData = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.user) {
+    const contexto = await getActiveCompanyContext();
+    if (!contexto) {
       setLoadingCategorias(false);
       setLoadingSegmentos(false);
       setLoadingAreas(false);
@@ -334,31 +328,15 @@ export default function ConfiguracoesPage() {
       return;
     }
 
-    const { data: usuario, error: usuarioError } = await supabase
-      .from("usuarios")
-      .select("empresa_id, perfil")
-      .eq("usuario_id", session.user.id)
-      .single<UsuarioEmpresa & { perfil: string | null }>();
-
-    if (usuarioError || !usuario?.empresa_id) {
-      console.error("Erro ao buscar empresa do usuário:", usuarioError);
-      setLoadingCategorias(false);
-      setLoadingSegmentos(false);
-      setLoadingAreas(false);
-      setLoadingFunil(false);
-      setLoadingAcessos(false);
-      return;
-    }
-
-    setEmpresaId(usuario.empresa_id);
-    setIsAdminUsuario(usuario.perfil === "admin");
+    setEmpresaId(contexto.empresaId);
+    setIsAdminUsuario(contexto.perfilLegado === "admin" && contexto.perfilAcessoId !== null);
 
     await Promise.all([
-      loadCategorias(usuario.empresa_id),
-      loadSegmentos(usuario.empresa_id),
-      loadAreas(usuario.empresa_id),
-      loadFunil(usuario.empresa_id),
-      loadAcessos(usuario.empresa_id),
+      loadCategorias(contexto.empresaId),
+      loadSegmentos(contexto.empresaId),
+      loadAreas(contexto.empresaId),
+      loadFunil(contexto.empresaId),
+      loadAcessos(contexto.empresaId),
     ]);
   };
 

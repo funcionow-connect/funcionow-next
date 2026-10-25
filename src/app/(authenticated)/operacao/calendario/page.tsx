@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext, requirePagePermission } from "@/lib/accessControl";
 
 type UsuarioAtual = {
   usuario_id: string;
@@ -173,11 +173,17 @@ export default function CalendarioPage() {
         return;
       }
 
-      const { data: usuario, error: usuarioError } = await supabase
+      const contexto = await getActiveCompanyContext();
+      if (!contexto || contexto.userId !== authUserId) {
+        window.location.href = "/perfil";
+        return;
+      }
+
+      const { data: usuarioBase, error: usuarioError } = await supabase
         .from("usuarios")
-        .select("usuario_id, empresa_id, nome, email")
+        .select("usuario_id, nome, email")
         .eq("usuario_id", authUserId)
-        .maybeSingle<UsuarioAtual>();
+        .maybeSingle<Omit<UsuarioAtual, "empresa_id">>();
 
       if (usuarioError) {
         console.error("Erro ao buscar usuário:", usuarioError);
@@ -185,11 +191,12 @@ export default function CalendarioPage() {
         return;
       }
 
-      if (!usuario?.empresa_id) {
+      if (!usuarioBase) {
         window.location.href = "/perfil";
         return;
       }
 
+      const usuario: UsuarioAtual = { ...usuarioBase, empresa_id: contexto.empresaId };
       setUsuarioAtual(usuario);
 
       const [projetosResult, tarefasResult, reunioesResult, eventosResult, prazosResult] =

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { supabase } from "@/lib/supabaseClient";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type Creator = {
   creator_id: string;
@@ -21,12 +22,6 @@ type Creator = {
   area_speaker_nome: string | null;
   seguidores: number | null;
   engajamento: number | null;
-};
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-  perfil: string | null;
-  perfil_acesso_id: string | null;
 };
 
 type Categoria = {
@@ -86,44 +81,11 @@ export default function CreatorsPage() {
   const [segmentos, setSegmentos] = useState<Segmento[]>([]);
   const [areasSpeaker, setAreasSpeaker] = useState<AreaSpeaker[]>([]);
 
-  const getPermissoesFallback = (perfil: string | null): PermissaoFinal => {
-    if (perfil === "admin") {
-      return {
-        podeAcessar: true,
-        podeCriar: true,
-        podeEditar: true,
-      };
-    }
-
-    if (perfil === "suporte") {
-      return {
-        podeAcessar: true,
-        podeCriar: true,
-        podeEditar: true,
-      };
-    }
-
-    if (perfil === "terceirizado") {
-      return {
-        podeAcessar: true,
-        podeCriar: false,
-        podeEditar: false,
-      };
-    }
-
-    return {
-      podeAcessar: false,
-      podeCriar: false,
-      podeEditar: false,
-    };
-  };
-
   const buscarPermissoesCreators = async (
     perfilAcessoId: string | null,
-    perfilLegado: string | null,
   ): Promise<PermissaoFinal> => {
     if (!perfilAcessoId) {
-      return getPermissoesFallback(perfilLegado);
+      return { podeAcessar: false, podeCriar: false, podeEditar: false };
     }
 
     const { data, error } = await supabase
@@ -135,7 +97,7 @@ export default function CreatorsPage() {
 
     if (error) {
       console.error("Erro ao buscar permissões de creators:", error);
-      return getPermissoesFallback(perfilLegado);
+      return { podeAcessar: false, podeCriar: false, podeEditar: false };
     }
 
     return {
@@ -149,31 +111,14 @@ export default function CreatorsPage() {
     try {
       setLoading(true);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
+      const contexto = await getActiveCompanyContext();
+      if (!contexto) {
         router.push("/");
         return;
       }
 
-      const { data: usuario, error: usuarioError } = await supabase
-        .from("usuarios")
-        .select("empresa_id, perfil, perfil_acesso_id")
-        .eq("usuario_id", session.user.id)
-        .single<UsuarioEmpresa>();
-
-      if (usuarioError || !usuario?.empresa_id) {
-        console.error("Erro ao buscar empresa do usuário:", usuarioError);
-        setCreators([]);
-        router.push("/perfil");
-        return;
-      }
-
       const permissoes = await buscarPermissoesCreators(
-        usuario.perfil_acesso_id,
-        usuario.perfil,
+        contexto.perfilAcessoId,
       );
 
       if (!permissoes.podeAcessar) {
@@ -184,7 +129,7 @@ export default function CreatorsPage() {
 
       setPodeCriar(permissoes.podeCriar);
       setPodeEditar(permissoes.podeEditar);
-      setEmpresaId(usuario.empresa_id);
+      setEmpresaId(contexto.empresaId);
 
       const [creatorsRes, categoriasRes, segmentosRes, areasRes] =
         await Promise.all([
@@ -193,25 +138,25 @@ export default function CreatorsPage() {
             .select(
               "creator_id, empresa_id, nome, instagram, status, score_total, score_parcial, criado_em, foto_url, categoria_id, categoria_nome, segmento_nome, area_speaker_nome, seguidores, engajamento",
             )
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("criado_em", { ascending: false }),
 
           supabase
             .from("categorias")
             .select("categoria_id, nome")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("nome", { ascending: true }),
 
           supabase
             .from("segmentos")
             .select("segmento_id, nome, categoria_id")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("nome", { ascending: true }),
 
           supabase
             .from("areas_speaker")
             .select("area_speaker_id, nome, segmento_id")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("nome", { ascending: true }),
         ]);
 

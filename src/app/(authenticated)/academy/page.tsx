@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 export default function AcademyPage() {
   const [trilhas, setTrilhas] = useState<any[]>([]);
@@ -11,18 +12,15 @@ export default function AcademyPage() {
   useEffect(() => {
     const loadAcademy = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
-        const { data: usuario } = await supabase.from("usuarios").select("empresa_id").eq("usuario_id", session.user.id).maybeSingle();
+        const contexto = await getActiveCompanyContext();
+        if (!contexto) return;
         const trackQuery = supabase.from("academy_trilhas").select("trilha_id, titulo, nivel, categoria").eq("ativo", true).order("titulo");
-        const { data: trackData, error: trackError } = usuario?.empresa_id
-          ? await trackQuery.or(`empresa_id.is.null,empresa_id.eq.${usuario.empresa_id}`)
-          : await trackQuery.is("empresa_id", null);
+        const { data: trackData, error: trackError } = await trackQuery.or(`empresa_id.is.null,empresa_id.eq.${contexto.empresaId}`);
         if (trackError || !trackData?.length) return;
         const ids = trackData.map((item) => item.trilha_id);
         const [{ data: lessons }, { data: progress }] = await Promise.all([
           supabase.from("academy_aulas").select("aula_id, trilha_id, duracao_min").in("trilha_id", ids).eq("ativo", true),
-          supabase.from("academy_progresso").select("aula_id").eq("usuario_id", session.user.id),
+          supabase.from("academy_progresso").select("aula_id").eq("usuario_id", contexto.userId),
         ]);
         const done = new Set((progress || []).map((item) => item.aula_id));
         const mapped = trackData.map((track) => {

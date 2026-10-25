@@ -4,13 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { requirePagePermission } from "@/lib/accessControl";
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-  perfil: string | null;
-  perfil_acesso_id: string | null;
-};
 
 type PermissaoCreators = {
   pode_acessar: boolean;
@@ -97,10 +92,9 @@ function EditCreatorContent() {
 
   const usuarioTemPermissaoEditar = async (
     perfilAcessoId: string | null,
-    perfilLegado: string | null,
   ) => {
     if (!perfilAcessoId) {
-      return perfilLegado === "admin" || perfilLegado === "suporte";
+      return false;
     }
 
     const { data, error } = await supabase
@@ -123,36 +117,19 @@ function EditCreatorContent() {
       try {
         setLoading(true);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.user) {
-          router.push("/");
-          return;
-        }
-
         if (!creatorId) {
           router.push("/creators");
           return;
         }
 
-        const { data: usuario, error: usuarioError } = await supabase
-          .from("usuarios")
-          .select("empresa_id, perfil, perfil_acesso_id")
-          .eq("usuario_id", session.user.id)
-          .single<UsuarioEmpresa>();
-
-        if (usuarioError || !usuario?.empresa_id) {
-          console.error("Erro ao buscar empresa do usuário:", usuarioError);
+        const contexto = await getActiveCompanyContext();
+        if (!contexto) {
+          console.error("Usuário sem empresa ativa");
           router.push("/perfil");
           return;
         }
 
-        const temPermissaoEditar = await usuarioTemPermissaoEditar(
-          usuario.perfil_acesso_id,
-          usuario.perfil,
-        );
+        const temPermissaoEditar = await usuarioTemPermissaoEditar(contexto.perfilAcessoId);
 
         if (!temPermissaoEditar) {
           alert("Você não tem permissão para editar creators.");
@@ -160,26 +137,26 @@ function EditCreatorContent() {
           return;
         }
 
-        setEmpresaId(usuario.empresa_id);
+        setEmpresaId(contexto.empresaId);
 
         const [categoriasRes, segmentosRes, areasRes, creatorRes] =
           await Promise.all([
             supabase
               .from("categorias")
               .select("categoria_id, nome")
-              .eq("empresa_id", usuario.empresa_id)
+              .eq("empresa_id", contexto.empresaId)
               .order("nome", { ascending: true }),
 
             supabase
               .from("segmentos")
               .select("segmento_id, nome, categoria_id")
-              .eq("empresa_id", usuario.empresa_id)
+              .eq("empresa_id", contexto.empresaId)
               .order("nome", { ascending: true }),
 
             supabase
               .from("areas_speaker")
               .select("area_speaker_id, nome, segmento_id")
-              .eq("empresa_id", usuario.empresa_id)
+              .eq("empresa_id", contexto.empresaId)
               .order("nome", { ascending: true }),
 
             supabase
@@ -188,7 +165,7 @@ function EditCreatorContent() {
                 "creator_id, empresa_id, nome, instagram, status, categoria_id, segmento_id, area_speaker_id, tipo_creator, seguidores, engajamento, curtidas_medias, comentarios_medios",
               )
               .eq("creator_id", creatorId)
-              .eq("empresa_id", usuario.empresa_id)
+              .eq("empresa_id", contexto.empresaId)
               .single<CreatorDetalhe>(),
           ]);
 

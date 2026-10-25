@@ -4,12 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabaseClient";
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-  perfil: string | null;
-  perfil_acesso_id: string | null;
-};
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type PermissaoCreators = {
   pode_acessar: boolean;
@@ -102,10 +97,9 @@ function AvaliarCreatorContent() {
 
   const usuarioTemPermissaoEditar = async (
     perfilAcessoId: string | null,
-    perfilLegado: string | null,
   ) => {
     if (!perfilAcessoId) {
-      return perfilLegado === "admin" || perfilLegado === "suporte";
+      return false;
     }
 
     const { data, error } = await supabase
@@ -117,7 +111,7 @@ function AvaliarCreatorContent() {
 
     if (error) {
       console.error("Erro ao buscar permissão de avaliação:", error);
-      return perfilLegado === "admin" || perfilLegado === "suporte";
+      return false;
     }
 
     return Boolean(data?.pode_acessar && data?.pode_editar);
@@ -128,36 +122,19 @@ function AvaliarCreatorContent() {
       try {
         setLoading(true);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.user) {
-          router.push("/");
-          return;
-        }
-
         if (!creatorId) {
           router.push("/creators");
           return;
         }
 
-        const { data: usuario, error: usuarioError } = await supabase
-          .from("usuarios")
-          .select("empresa_id, perfil, perfil_acesso_id")
-          .eq("usuario_id", session.user.id)
-          .single<UsuarioEmpresa>();
-
-        if (usuarioError || !usuario?.empresa_id) {
-          console.error("Erro ao buscar empresa do usuário:", usuarioError);
+        const contexto = await getActiveCompanyContext();
+        if (!contexto) {
+          console.error("Usuário sem empresa ativa");
           router.push("/perfil");
           return;
         }
 
-        const temPermissaoEditar = await usuarioTemPermissaoEditar(
-          usuario.perfil_acesso_id,
-          usuario.perfil,
-        );
+        const temPermissaoEditar = await usuarioTemPermissaoEditar(contexto.perfilAcessoId);
 
         if (!temPermissaoEditar) {
           alert("Você não tem permissão para avaliar creators.");
@@ -165,7 +142,7 @@ function AvaliarCreatorContent() {
           return;
         }
 
-        setEmpresaId(usuario.empresa_id);
+        setEmpresaId(contexto.empresaId);
 
         const [creatorRes, criteriosRes, etapasRes, configRes] = await Promise.all([
           supabase
@@ -174,27 +151,27 @@ function AvaliarCreatorContent() {
               "creator_id, empresa_id, nome, instagram, categoria_nome, segmento_nome, area_speaker_nome, status, score_parcial, observacoes, avaliacao_id, etapa_id, score_fit_detalhes",
             )
             .eq("creator_id", creatorId)
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .single<CreatorResumo>(),
 
           supabase
             .from("criterios_avaliacao")
             .select("criterio_id, nome, peso, ordem, tipo_resposta")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("ordem", { ascending: true, nullsFirst: false })
             .order("nome", { ascending: true }),
 
           supabase
             .from("funil_etapas")
             .select("etapa_id, nome, ordem")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .order("ordem", { ascending: true })
             .order("nome", { ascending: true }),
 
           supabase
             .from("configuracoes_funil")
             .select("min_score_aprovacao, min_score_potencial, permitir_potencial")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .maybeSingle(),
         ]);
 

@@ -4,12 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabaseClient";
-
-type UsuarioEmpresa = {
-  empresa_id: string;
-  perfil: string | null;
-  perfil_acesso_id: string | null;
-};
+import { getActiveCompanyContext } from "@/lib/accessControl";
 
 type PermissaoCreators = {
   pode_acessar: boolean;
@@ -84,16 +79,9 @@ function CreatorDetailContent() {
 
   const buscarPermissaoCreators = async (
     perfilAcessoId: string | null,
-    perfilLegado: string | null,
   ) => {
     if (!perfilAcessoId) {
-      return {
-        pode_acessar:
-          perfilLegado === "admin" ||
-          perfilLegado === "suporte" ||
-          perfilLegado === "terceirizado",
-        pode_editar: perfilLegado === "admin" || perfilLegado === "suporte",
-      };
+      return { pode_acessar: false, pode_editar: false };
     }
 
     const { data, error } = await supabase
@@ -106,13 +94,7 @@ function CreatorDetailContent() {
     if (error) {
       console.error("Erro ao buscar permissão do detalhe:", error);
 
-      return {
-        pode_acessar:
-          perfilLegado === "admin" ||
-          perfilLegado === "suporte" ||
-          perfilLegado === "terceirizado",
-        pode_editar: perfilLegado === "admin" || perfilLegado === "suporte",
-      };
+      return { pode_acessar: false, pode_editar: false };
     }
 
     return {
@@ -126,36 +108,24 @@ function CreatorDetailContent() {
       try {
         setLoading(true);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.user) {
-          router.push("/");
-          return;
-        }
-
         if (!creatorId) {
           router.push("/creators");
           return;
         }
 
-        const { data: usuario, error: usuarioError } = await supabase
-          .from("usuarios")
-          .select("empresa_id, perfil, perfil_acesso_id")
-          .eq("usuario_id", session.user.id)
-          .single<UsuarioEmpresa>();
-
-        if (usuarioError || !usuario?.empresa_id) {
-          console.error("Erro ao buscar empresa do usuário:", usuarioError);
+        const contexto = await getActiveCompanyContext();
+        if (!contexto) {
           router.push("/perfil");
           return;
         }
 
-        const permissao = await buscarPermissaoCreators(
-          usuario.perfil_acesso_id,
-          usuario.perfil,
-        );
+        if (!contexto.empresaId) {
+          console.error("Usuário sem empresa ativa");
+          router.push("/perfil");
+          return;
+        }
+
+        const permissao = await buscarPermissaoCreators(contexto.perfilAcessoId);
 
         if (!permissao.pode_acessar) {
           alert("Você não tem permissão para acessar creators.");
@@ -170,13 +140,13 @@ function CreatorDetailContent() {
             .from("v_creator_detalhe")
             .select("*")
             .eq("creator_id", creatorId)
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .single(),
 
           supabase
             .from("configuracoes_funil")
             .select("min_score_aprovacao, min_score_potencial")
-            .eq("empresa_id", usuario.empresa_id)
+            .eq("empresa_id", contexto.empresaId)
             .maybeSingle<ConfiguracaoFunil>(),
         ]);
 
