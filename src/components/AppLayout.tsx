@@ -494,12 +494,12 @@ export default function AppLayout({
               <strong style={{ fontSize: "12px", color: "#182033" }}>{userName}</strong>
               {empresasDisponiveis.length > 1 ? (
                 <label style={{ display: "flex", alignItems: "center", gap: "5px", color: "#737b8c", fontSize: "10px", fontWeight: 600 }}>
-                  <span>Empresa ativa:</span>
+                  <span>Alterar empresa:</span>
                   <select
                     value={empresaAtivaId}
                     onChange={(event) => void handleSwitchCompany(event.target.value)}
                     disabled={trocandoEmpresa}
-                    aria-label="Empresa ativa"
+                    aria-label="Alterar empresa"
                     style={{ maxWidth: "170px", border: "none", background: "transparent", color: "#737b8c", fontSize: "10px", fontWeight: 700, cursor: "pointer", outline: "none" }}
                   >
                     {empresasDisponiveis.map((item) => <option key={item.empresa_id} value={item.empresa_id}>{item.nome} · {item.papel}</option>)}
