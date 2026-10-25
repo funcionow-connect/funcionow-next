@@ -35,8 +35,7 @@ begin
   set empresa_ativa_id = p_empresa_id,
       empresa_id = p_empresa_id,
       perfil_acesso_id = coalesce(v_perfil_acesso_id, perfil_acesso_id),
-      perfil = v_perfil,
-      atualizado_em = now()
+      perfil = v_perfil
   where usuario_id = auth.uid();
 
   if not found then
